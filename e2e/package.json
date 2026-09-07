@@ -1,0 +1,17 @@
+{
+  "name": "hayden-blog-e2e-suite",
+  "version": "1.0.0",
+  "description": "Comprehensive Opaque-box E2E Acceptance Test Suite for Hayden Xue Blog System",
+  "type": "module",
+  "scripts": {
+    "test": "node run-all.mjs",
+    "test:tier1": "node run-all.mjs --tier=1",
+    "test:tier2": "node run-all.mjs --tier=2",
+    "test:tier3": "node run-all.mjs --tier=3",
+    "test:tier4": "node run-all.mjs --tier=4",
+    "test:summary": "node run-all.mjs --summary-only"
+  },
+  "keywords": ["e2e", "testing", "opaque-box", "blog", "spring-boot", "nextjs"],
+  "author": "teamwork_preview_test_writer",
+  "license": "ISC"
+}

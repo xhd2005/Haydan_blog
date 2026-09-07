@@ -1,0 +1,84 @@
+# ==========================================
+# 操作系统与 IDE 配置
+# ==========================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.sw?
+*~
+
+# ==========================================
+# AI Agent 临时与过程性工作目录
+# ==========================================
+.agents/
+
+# ==========================================
+# 前端 (Next.js / Node.js)
+# ==========================================
+frontend/node_modules/
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.turbo/
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+
+# npm / yarn / pnpm 日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 本地环境变量配置 (避免凭据泄露)
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==========================================
+# 后端 (Java / Maven / Spring Boot)
+# ==========================================
+backend/target/
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+# Maven 日志与临时文件
+mvn-build.log
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# Spring Boot 日志与运行时临时文件
+*.log
+logs/
+backend/logs/
+
+# ==========================================
+# 运行时动态上传文件 (仅保留目录结构，忽略动态生成文件)
+# ==========================================
+uploads/*
+!uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# ==========================================
+# 测试与 E2E 报告
+# ==========================================
+test-results/
+playwright-report/
+coverage/

@@ -1,0 +1,50 @@
+package com.howard.blog.controller;
+
+import com.howard.blog.common.Result;
+import com.howard.blog.entity.Category;
+import com.howard.blog.service.CategoryService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/categories")
+@RequiredArgsConstructor
+public class CategoryController {
+
+    private final CategoryService categoryService;
+
+    @GetMapping
+    public Result<List<Category>> getAllCategories() {
+        return Result.success(categoryService.getAllCategories());
+    }
+
+    @GetMapping("/{slug}")
+    public Result<Category> getBySlug(@PathVariable String slug) {
+        return Result.success(categoryService.getBySlug(slug));
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<Void> createCategory(@Valid @RequestBody Category category) {
+        categoryService.createCategory(category);
+        return Result.success();
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<Void> updateCategory(@PathVariable Long id, @Valid @RequestBody Category category) {
+        categoryService.updateCategory(id, category);
+        return Result.success();
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<Void> deleteCategory(@PathVariable Long id) {
+        categoryService.deleteCategory(id);
+        return Result.success();
+    }
+}
