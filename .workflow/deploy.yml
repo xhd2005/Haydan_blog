@@ -1,0 +1,53 @@
+# ========================================================
+# Hayden Blog - Gitee Go 自动化部署流水线
+# 触发条件：当代码推送到 master 或 main 分支时自动触发持续集成部署
+# ========================================================
+name: hayden-blog-deploy
+
+# 触发事件配置
+on:
+  push:
+    branches:
+      - main
+      - master
+
+# 流水线执行环境与步骤
+stages:
+  - name: deploy-stage
+    displayName: '腾讯云生产服务器自动化构建与部署'
+    strategy:
+      parallel: 1
+    steps:
+      - name: git-checkout
+        uses: git-checkout@v1.0.0
+        displayName: '检出最新源码'
+
+      - name: deploy-to-tencent-cloud
+        uses: ssh-deploy@v1.0.0
+        displayName: 'SSH 直连腾讯云服务器执行 Docker 增量更新'
+        with:
+          # 在 Gitee 仓库【管理 -> 凭据管理】中添加私钥凭据 SERVER_SSH_KEY
+          # 在【流水线配置 -> 环境变量】中配置 SERVER_HOST: 49.233.166.212, SERVER_USER: ubuntu
+          host: ${{ env.SERVER_HOST || '49.233.166.212' }}
+          user: ${{ env.SERVER_USER || 'ubuntu' }}
+          port: 22
+          private_key: ${{ secrets.SERVER_SSH_KEY }}
+          # 执行自动化拉取与 Docker 容器热更新
+          script: |
+            echo "🚀 开始在腾讯云服务器上拉取最新代码并热更新..."
+            TARGET_DIR="/opt/hayden-blog"
+            if [ -d "$TARGET_DIR/.git" ]; then
+              cd $TARGET_DIR
+              git reset --hard HEAD
+              git pull origin ${{ gitee.ref_name || 'main' }}
+            else
+              echo "⚠️ 目标目录未初始化为 git 仓库，请先在服务器检出代码。"
+            fi
+            
+            echo "🔨 调用 Docker 增量编译并重启服务..."
+            cd $TARGET_DIR
+            docker compose build backend frontend
+            docker compose up -d backend frontend
+            docker image prune -f
+            docker compose ps
+            echo "🎉 部署完成！博客系统已在线正常运行！"

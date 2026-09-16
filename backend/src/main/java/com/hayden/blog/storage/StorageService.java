@@ -7,7 +7,7 @@ import java.io.InputStream;
 /**
  * 统一多媒体存储服务策略接口
  */
-public sealed interface StorageService permits LocalStorageServiceImpl, MinioStorageServiceImpl {
+public sealed interface StorageService permits LocalStorageServiceImpl, MinioStorageServiceImpl, AliyunOssStorageServiceImpl {
 
     /**
      * 获取当前存储策略类型名称 (e.g. "local", "minio")

@@ -193,6 +193,7 @@ export const api = {
   getSettings: () => request<SiteSetting>('/api/settings'),
   updateSettings: (data: Partial<SiteSetting>) => request<void>('/api/settings', { method: 'PUT', body: JSON.stringify(data) }),
   testMinio: (data?: any) => request<{ success: boolean; message: string; bucketExists?: boolean; latencyMs?: number }>('/api/settings/test-minio', { method: 'POST', body: JSON.stringify(data || {}) }),
+  testOss: (data?: any) => request<{ success: boolean; message: string; bucketExists?: boolean; latencyMs?: number }>('/api/settings/test-oss', { method: 'POST', body: JSON.stringify(data || {}) }),
 
   // Media
   getMedia: (params?: { page?: number; pageSize?: number; keyword?: string }) => {

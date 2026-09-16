@@ -11,4 +11,6 @@ public interface SiteSettingService extends IService<SiteSetting> {
     void updateSettings(SiteSettingUpdateRequest request);
 
     com.hayden.blog.dto.MinioTestResult testMinioConnection(com.hayden.blog.dto.TestMinioRequest request);
+
+    com.hayden.blog.dto.MinioTestResult testOssConnection(com.hayden.blog.dto.TestMinioRequest request);
 }

@@ -59,13 +59,20 @@ public class SiteSetting implements Serializable {
     private String heroSloganConfigJson;
     private String pageVisualsJson;
 
-    // 分布式对象存储与 MinIO 配置 (local / minio)
+    // 分布式对象存储与 MinIO 配置 (local / minio / oss)
     private String storageType;
     private String minioEndpoint;
     private String minioBucket;
     private String minioAccessKey;
     private String minioSecretKey;
     private String minioPublicUrl;
+
+    // 阿里云 OSS 专属配置
+    private String ossEndpoint;
+    private String ossBucket;
+    private String ossAccessKey;
+    private String ossSecretKey;
+    private String ossPublicUrl;
 
     // AI 读者配额与评论审核控制
     private Integer readerDailyAiQuota; // 读者每日 AI 额度 (默认 15 次)

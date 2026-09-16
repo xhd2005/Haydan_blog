@@ -43,13 +43,20 @@ public class SiteSettingUpdateRequest {
     private String heroSloganConfigJson;
     private String pageVisualsJson;
 
-    // 对象存储与 MinIO 配置
+    // 对象存储配置 (local / minio / oss)
     private String storageType;
     private String minioEndpoint;
     private String minioBucket;
     private String minioAccessKey;
     private String minioSecretKey;
     private String minioPublicUrl;
+
+    // 阿里云 OSS 专属配置
+    private String ossEndpoint;
+    private String ossBucket;
+    private String ossAccessKey;
+    private String ossSecretKey;
+    private String ossPublicUrl;
 
     // AI 读者配额与评论审核控制
     private Integer readerDailyAiQuota;

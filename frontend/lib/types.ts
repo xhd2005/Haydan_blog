@@ -213,12 +213,17 @@ export interface SiteSetting {
   heroVideoUrl?: string;
   heroSloganConfigJson?: string;
   pageVisualsJson?: string;
-  storageType?: string;
+  storageType?: 'local' | 'minio' | 'oss' | string;
   minioEndpoint?: string;
   minioBucket?: string;
   minioAccessKey?: string;
   minioSecretKey?: string;
   minioPublicUrl?: string;
+  ossEndpoint?: string;
+  ossBucket?: string;
+  ossAccessKey?: string;
+  ossSecretKey?: string;
+  ossPublicUrl?: string;
   aiProvidersJson?: string;
   readerDailyAiQuota?: number;
   commentModerationEnabled?: number;

@@ -102,11 +102,55 @@ public non-sealed class MinioStorageServiceImpl implements StorageService {
     }
 
     public MinioClient buildClient(String endpoint, String accessKey, String secretKey) {
-        return MinioClient.builder()
-                .endpoint(endpoint)
-                .credentials(accessKey, secretKey)
-                .region("us-east-1")
-                .build();
+        String normalizedEndpoint = normalizeEndpoint(endpoint);
+        String region = resolveRegion(normalizedEndpoint);
+        MinioClient.Builder builder = MinioClient.builder()
+                .endpoint(normalizedEndpoint)
+                .credentials(accessKey, secretKey);
+        if (StringUtils.hasText(region)) {
+            builder.region(region);
+        }
+        return builder.build();
+    }
+
+    private String normalizeEndpoint(String endpoint) {
+        if (!StringUtils.hasText(endpoint)) {
+            return "";
+        }
+        String ep = endpoint.trim();
+        if (!ep.startsWith("http://") && !ep.startsWith("https://")) {
+            ep = "https://" + ep;
+        }
+        if (ep.endsWith("/")) {
+            ep = ep.substring(0, ep.length() - 1);
+        }
+        return ep;
+    }
+
+    private String resolveRegion(String endpoint) {
+        if (!StringUtils.hasText(endpoint)) {
+            return "us-east-1";
+        }
+        String lower = endpoint.toLowerCase();
+        // 匹配阿里云 OSS 域名，如 oss-cn-hangzhou.aliyuncs.com 或 s3.oss-cn-beijing.aliyuncs.com
+        if (lower.contains(".aliyuncs.com")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(?:oss|s3\\.oss)-([a-z0-9-]+)\\.aliyuncs\\.com");
+            java.util.regex.Matcher matcher = pattern.matcher(lower);
+            if (matcher.find()) {
+                return matcher.group(1); // 返回如 cn-hangzhou, cn-beijing
+            }
+            return "cn-hangzhou"; // 默认 fallback
+        }
+        // 匹配 AWS S3 域名
+        if (lower.contains(".amazonaws.com")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("s3\\.([a-z0-9-]+)\\.amazonaws\\.com");
+            java.util.regex.Matcher matcher = pattern.matcher(lower);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+        // 本地自建 MinIO 默认 us-east-1
+        return "us-east-1";
     }
 
     @Override
@@ -210,23 +254,29 @@ public non-sealed class MinioStorageServiceImpl implements StorageService {
     public String getAccessUrl(String objectKey) {
         MinioConfig config = getEffectiveConfig();
         String key = objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
+        String bucket = config.bucket() != null ? config.bucket().trim() : "";
 
         if (StringUtils.hasText(config.publicUrl())) {
             String pub = config.publicUrl().trim();
             if (pub.endsWith("/")) {
                 pub = pub.substring(0, pub.length() - 1);
             }
-            if (pub.endsWith("/" + config.bucket())) {
+            // 如果 Public URL 已经以 /bucket 结尾，或者主机名中已经包含该 bucket（例如 https://mybucket.oss-cn-hangzhou.aliyuncs.com 或 cdn 域名）
+            if (StringUtils.hasText(bucket) && (pub.endsWith("/" + bucket) || pub.contains("://" + bucket + ".") || pub.contains("." + bucket + "."))) {
                 return pub + "/" + key;
             }
-            return pub + "/" + config.bucket() + "/" + key;
+            // 如果是阿里云 OSS 默认域名如 https://oss-cn-hangzhou.aliyuncs.com，智能转换为虚拟主机格式 https://bucket.oss-cn-hangzhou.aliyuncs.com/key
+            if (StringUtils.hasText(bucket) && pub.contains(".aliyuncs.com") && !pub.contains(bucket)) {
+                return pub.replace("://", "://" + bucket + ".") + "/" + key;
+            }
+            return StringUtils.hasText(bucket) ? pub + "/" + bucket + "/" + key : pub + "/" + key;
         }
 
-        String ep = config.endpoint().trim();
-        if (ep.endsWith("/")) {
-            ep = ep.substring(0, ep.length() - 1);
+        String ep = normalizeEndpoint(config.endpoint());
+        if (StringUtils.hasText(bucket) && ep.contains(".aliyuncs.com") && !ep.contains(bucket)) {
+            return ep.replace("://", "://" + bucket + ".") + "/" + key;
         }
-        return ep + "/" + config.bucket() + "/" + key;
+        return StringUtils.hasText(bucket) ? ep + "/" + bucket + "/" + key : ep + "/" + key;
     }
 
     @Override
@@ -240,8 +290,9 @@ public non-sealed class MinioStorageServiceImpl implements StorageService {
             return false;
         }
         try {
-            MinioClient client = buildClient(endpoint, accessKey, secretKey);
-            String targetBucket = StringUtils.hasText(bucket) ? bucket : "hayden-blog";
+            String normEndpoint = normalizeEndpoint(endpoint);
+            MinioClient client = buildClient(normEndpoint, accessKey.trim(), secretKey.trim());
+            String targetBucket = StringUtils.hasText(bucket) ? bucket.trim() : "hayden-blog";
             try {
                 return client.bucketExists(BucketExistsArgs.builder().bucket(targetBucket).build());
             } catch (Exception be) {

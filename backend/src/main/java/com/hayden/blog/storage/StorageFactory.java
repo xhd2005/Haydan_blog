@@ -18,6 +18,7 @@ public class StorageFactory {
 
     private final LocalStorageServiceImpl localStorageService;
     private final MinioStorageServiceImpl minioStorageService;
+    private final AliyunOssStorageServiceImpl aliyunOssStorageService;
     private final SiteSettingService siteSettingService;
 
     @Value("${app.storage.type:local}")
@@ -25,15 +26,17 @@ public class StorageFactory {
 
     public StorageFactory(LocalStorageServiceImpl localStorageService,
                           MinioStorageServiceImpl minioStorageService,
+                          AliyunOssStorageServiceImpl aliyunOssStorageService,
                           @Lazy SiteSettingService siteSettingService) {
         this.localStorageService = localStorageService;
         this.minioStorageService = minioStorageService;
+        this.aliyunOssStorageService = aliyunOssStorageService;
         this.siteSettingService = siteSettingService;
     }
 
     /**
      * 获取当前生效的存储服务实例
-     * 若配置为 minio 但 MinIO 未配置或连接不可达，自动平滑回退至 local 存储
+     * 若配置为 minio/oss 但云端对象存储未配置或连接不可达，自动平滑回退至 local 存储
      */
     public StorageService getStorageService() {
         String configuredType = defaultStorageType;
@@ -44,6 +47,21 @@ public class StorageFactory {
             }
         } catch (Exception e) {
             log.debug("读取 SiteSetting 存储配置异常，使用默认策略: {}", e.getMessage());
+        }
+
+        if ("oss".equalsIgnoreCase(configuredType) || "aliyun_oss".equalsIgnoreCase(configuredType)) {
+            if (aliyunOssStorageService.isConfigured()) {
+                boolean reachable = aliyunOssStorageService.testConnection();
+                if (reachable) {
+                    return aliyunOssStorageService;
+                } else {
+                    log.warn("阿里云 OSS 对象存储已配置但连通失败，已自动优雅降级为本地磁盘存储 (Local Storage)");
+                    return localStorageService;
+                }
+            } else {
+                log.info("阿里云 OSS 关键凭据未完整配置，自动回退使用本地磁盘存储 (Local Storage)");
+                return localStorageService;
+            }
         }
 
         if ("minio".equalsIgnoreCase(configuredType)) {
@@ -72,6 +90,10 @@ public class StorageFactory {
         return minioStorageService;
     }
 
+    public StorageService getAliyunOssStorageService() {
+        return aliyunOssStorageService;
+    }
+
     /**
      * Java 25 模式匹配 switch 针对 Sealed Interface 封闭类型的穷尽性分发
      */
@@ -79,6 +101,7 @@ public class StorageFactory {
         return switch (service) {
             case LocalStorageServiceImpl local -> "Local Disk Storage at " + local.getStorageType();
             case MinioStorageServiceImpl minio -> "MinIO Cloud Storage at " + minio.getStorageType();
+            case AliyunOssStorageServiceImpl oss -> "Aliyun OSS Cloud Storage at " + oss.getStorageType();
         };
     }
 }

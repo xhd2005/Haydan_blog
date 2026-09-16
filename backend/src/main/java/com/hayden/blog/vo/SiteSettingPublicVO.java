@@ -62,11 +62,14 @@ public class SiteSettingPublicVO implements Serializable {
     private String heroSloganConfigJson;
     private String pageVisualsJson;
 
-    // 分布式对象存储与 MinIO 配置 (仅公开存储类型与公共端点及 Bucket，排除 AccessKey 与 SecretKey)
+    // 分布式对象存储与 MinIO / 阿里云 OSS 配置 (仅公开存储类型与公共端点及 Bucket，排除 AccessKey 与 SecretKey)
     private String storageType;
     private String minioEndpoint;
     private String minioBucket;
     private String minioPublicUrl;
+    private String ossEndpoint;
+    private String ossBucket;
+    private String ossPublicUrl;
 
     private Integer readerDailyAiQuota;
     private Integer commentModerationEnabled;

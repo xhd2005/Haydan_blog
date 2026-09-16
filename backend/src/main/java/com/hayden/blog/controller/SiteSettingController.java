@@ -39,4 +39,10 @@ public class SiteSettingController {
     public Result<com.hayden.blog.dto.MinioTestResult> testMinio(@RequestBody(required = false) com.hayden.blog.dto.TestMinioRequest request) {
         return Result.success(siteSettingService.testMinioConnection(request));
     }
+
+    @PostMapping("/test-oss")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<com.hayden.blog.dto.MinioTestResult> testOss(@RequestBody(required = false) com.hayden.blog.dto.TestMinioRequest request) {
+        return Result.success(siteSettingService.testOssConnection(request));
+    }
 }
