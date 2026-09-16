@@ -27,6 +27,7 @@ import {
   Layers,
   CheckCircle2,
 } from 'lucide-react';
+import { AuthModal } from '@/components/AuthModal';
 import type { CitationItem, ToolStatus, ExtendedAiChatMessage } from '@/components/ai/AiAssistantModal';
 
 interface ToolCallStep extends ToolStatus {
@@ -80,6 +81,7 @@ export function AiBrainCenter() {
   ]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -101,6 +103,15 @@ export function AiBrainCenter() {
   const handleSend = (presetText?: string) => {
     const text = (presetText ?? input).trim();
     if (!text || isStreaming) return;
+
+    // 未登录拦截，直接弹出登录弹窗
+    const token = typeof window !== 'undefined' ? localStorage.getItem('hayden_token') : null;
+    if (!token) {
+      toast.info(isEn ? 'Please sign in to chat with Hayden AI' : '请先登录读者账号后再体验 AI 智能伴读');
+      setAuthModalOpen(true);
+      return;
+    }
+
     if (!presetText) setInput('');
 
     const userMsg: CenterMessage = { role: 'user', content: text };
@@ -190,6 +201,11 @@ export function AiBrainCenter() {
       () => setIsStreaming(false),
       (err) => {
         setIsStreaming(false);
+        if (err?.code === 401 || err?.message === 'UNAUTHORIZED' || err?.message?.includes('401') || err?.message?.includes('Unauthorized')) {
+          toast.info(isEn ? 'Session expired or not logged in, please sign in' : '登录已失效或尚未登录，请先登录后再体验 AI 伴读');
+          setAuthModalOpen(true);
+          return;
+        }
         toast.error('AI 响应中断: ' + (err?.message || '网络或接口异常'));
       }
     );
@@ -407,6 +423,12 @@ export function AiBrainCenter() {
           <span className="hidden sm:inline">发送</span>
         </button>
       </div>
+
+      {/* 读者登录弹窗 */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+      />
     </div>
   );
 }

@@ -31,7 +31,7 @@ jobs:
           docker build -t hayden-blog-frontend:latest ./frontend
 
       # =======================================================
-      # 阶段 2: 配置 SSH 隧道
+      # 阶段 2: 配置 SSH 密钥与免密连接
       # =======================================================
       - name: 配置 SSH 密钥与免密连接
         env:
@@ -42,7 +42,9 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H -p ${{ secrets.SERVER_PORT || 22 }} "$SERVER_HOST" >> ~/.ssh/known_hosts
+          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
+          echo "Connecting to host: $CLEAN_HOST"
+          ssh-keyscan -H -p ${{ secrets.SERVER_PORT || 22 }} "$CLEAN_HOST" >> ~/.ssh/known_hosts || true
 
       # =======================================================
       # 阶段 3: 同步最新配置与 SQL 脚本至腾讯云服务器
@@ -54,13 +56,23 @@ jobs:
           SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
           TARGET_DIR: ${{ secrets.SERVER_DEPLOY_DIR || '/opt/hayden-blog' }}
         run: |
-          echo "🚀 正在同步配置文件到服务器 $TARGET_DIR ..."
-          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "mkdir -p $TARGET_DIR/deploy/nginx $TARGET_DIR/docs/sql $TARGET_DIR/data"
-          scp -P $SERVER_PORT docker-compose.yml $SERVER_USER@$SERVER_HOST:$TARGET_DIR/
-          scp -P $SERVER_PORT -r deploy/nginx/* $SERVER_USER@$SERVER_HOST:$TARGET_DIR/deploy/nginx/
-          scp -P $SERVER_PORT -r docs/sql/* $SERVER_USER@$SERVER_HOST:$TARGET_DIR/docs/sql/
-          scp -P $SERVER_PORT deploy/manage.sh $SERVER_USER@$SERVER_HOST:$TARGET_DIR/deploy/
-          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "chmod +x $TARGET_DIR/deploy/manage.sh"
+          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
+          echo "🚀 正在同步配置文件到服务器 $TARGET_DIR (Host: $CLEAN_HOST) ..."
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $SERVER_PORT"
+          SCP_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P $SERVER_PORT"
+          
+          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "mkdir -p $TARGET_DIR/deploy/nginx $TARGET_DIR/docs/sql $TARGET_DIR/data"
+          scp $SCP_OPTS docker-compose.yml $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/
+          if [ -d deploy/nginx ] && [ "$(ls -A deploy/nginx)" ]; then
+            scp $SCP_OPTS -r deploy/nginx/* $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/deploy/nginx/
+          fi
+          if [ -d docs/sql ] && [ "$(ls -A docs/sql)" ]; then
+            scp $SCP_OPTS -r docs/sql/* $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/docs/sql/
+          fi
+          if [ -f deploy/manage.sh ]; then
+            scp $SCP_OPTS deploy/manage.sh $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/deploy/
+            ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "chmod +x $TARGET_DIR/deploy/manage.sh"
+          fi
 
       # =======================================================
       # 阶段 4: 管道流式传输镜像并即时导入
@@ -71,10 +83,12 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
         run: |
-          echo "⚡ 正在通过 SSH 管道将镜像打包并直传至腾讯云服务器并导入..."
+          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
+          echo "⚡ 正在通过 SSH 管道将镜像打包并直传至腾讯云服务器 ($CLEAN_HOST) 并导入..."
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -C -p $SERVER_PORT"
           docker save hayden-blog-backend:latest hayden-blog-frontend:latest | \
             gzip -1 | \
-            ssh -C -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "gunzip | docker load"
+            ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "gunzip | docker load"
           echo "✅ 镜像传输并载入服务器成功！"
 
       # =======================================================
@@ -87,8 +101,10 @@ jobs:
           SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
           TARGET_DIR: ${{ secrets.SERVER_DEPLOY_DIR || '/opt/hayden-blog' }}
         run: |
-          echo "🔄 在腾讯云服务器上滚动更新容器..."
-          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "cd $TARGET_DIR && docker compose up -d --remove-orphans"
-          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "docker image prune -f"
+          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
+          echo "🔄 在腾讯云服务器 ($CLEAN_HOST) 上滚动更新容器..."
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $SERVER_PORT"
+          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "cd $TARGET_DIR && docker compose up -d --remove-orphans"
+          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "docker image prune -f"
           echo "🎉 部署完成！服务运行状态如下："
-          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "cd $TARGET_DIR && docker compose ps"
+          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "cd $TARGET_DIR && docker compose ps"

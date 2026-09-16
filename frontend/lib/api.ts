@@ -415,18 +415,29 @@ export const api = {
 
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/ai/chat`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('hayden_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(reqData),
         signal: callbacks.signal,
       });
 
       if (!response.ok) {
-        throw new Error(`AI 请求失败: ${response.statusText}`);
+        if (response.status === 401) {
+          throw new ApiError('UNAUTHORIZED', 401);
+        }
+        throw new ApiError(`AI 请求失败: ${response.statusText}`, response.status);
       }
 
       if (!response.body) {

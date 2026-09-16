@@ -44,6 +44,7 @@ import {
   X,
   Search as SearchIcon,
 } from 'lucide-react';
+import { AuthModal } from '@/components/AuthModal';
 
 interface ToolCallStep {
   name: string;
@@ -179,6 +180,7 @@ export function HaydenAiNexus({ initialVisual }: { initialVisual?: PageVisualIte
   const [messages, setMessages] = useState<NexusMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // 背景多媒体控制
@@ -631,6 +633,14 @@ export function HaydenAiNexus({ initialVisual }: { initialVisual?: PageVisualIte
     const text = (presetText ?? input).trim();
     if (!text || isStreaming) return;
 
+    // 未登录拦截：直接引导登录
+    const token = typeof window !== 'undefined' ? localStorage.getItem('hayden_token') : null;
+    if (!token) {
+      toast.info(isEn ? 'Please sign in before using Hayden AI' : '请先登录读者账号后再体验 AI 智能伴读');
+      setAuthModalOpen(true);
+      return;
+    }
+
     if (!presetText) {
       setInput('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -812,6 +822,11 @@ export function HaydenAiNexus({ initialVisual }: { initialVisual?: PageVisualIte
             clearInterval(drainIntervalRef.current);
             drainIntervalRef.current = null;
           }
+          if (err?.code === 401 || err?.message === 'UNAUTHORIZED' || err?.message?.includes('401') || err?.message?.includes('Unauthorized')) {
+            toast.info(isEn ? 'Session expired or not logged in, please sign in' : '登录已失效或尚未登录，请先登录后再体验 AI 伴读');
+            setAuthModalOpen(true);
+            return;
+          }
           toast.error('AI 响应中断: ' + (err?.message || '服务异常'));
         },
       });
@@ -822,6 +837,11 @@ export function HaydenAiNexus({ initialVisual }: { initialVisual?: PageVisualIte
       if (drainIntervalRef.current) {
         clearInterval(drainIntervalRef.current);
         drainIntervalRef.current = null;
+      }
+      if (err?.code === 401 || err?.message === 'UNAUTHORIZED' || err?.message?.includes('401') || err?.message?.includes('Unauthorized')) {
+        toast.info(isEn ? 'Session expired or not logged in, please sign in' : '登录已失效或尚未登录，请先登录后再体验 AI 伴读');
+        setAuthModalOpen(true);
+        return;
       }
       toast.error('请求失败: ' + (err?.message || '未知错误'));
     }
@@ -1665,6 +1685,12 @@ export function HaydenAiNexus({ initialVisual }: { initialVisual?: PageVisualIte
           </span>
         </button>
       </div>
+
+      {/* 读者登录弹窗 */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+      />
     </div>
   );
 }

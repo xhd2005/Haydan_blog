@@ -282,8 +282,8 @@ export function AiAssistantModal() {
     if (isStreaming) return;
 
     if (!currentUser) {
+      toast.info(locale === 'en' ? 'Please sign in to chat with Hayden AI' : '请先登录读者账号后再体验 AI 智能伴读');
       setAuthModalOpen(true);
-      toast.warning(locale === 'en' ? 'Please log in to experience Hayden AI Co-pilot.' : '未登录访客无法使用 AI 伴读，请先登录读者账号');
       return;
     }
 
@@ -431,6 +431,11 @@ export function AiAssistantModal() {
         (err) => {
           setIsStreaming(false);
           checkUserAndQuota();
+          if (err?.code === 401 || err?.message === 'UNAUTHORIZED' || err?.message?.includes('401') || err?.message?.includes('Unauthorized')) {
+            toast.info(locale === 'en' ? 'Session expired or not logged in, please sign in' : '登录已失效或尚未登录，请先登录后再体验 AI 伴读');
+            setAuthModalOpen(true);
+            return;
+          }
           setMessages((prev) => {
             const updated = [...prev];
             const lastIndex = updated.length - 1;

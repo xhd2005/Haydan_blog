@@ -24,7 +24,7 @@ export function CenteredPageLoader({
 }: CenteredPageLoaderProps) {
   return (
     <div
-      className={`min-h-[55vh] w-full flex items-center justify-center select-none px-6 py-12 ${className}`}
+      className={`min-h-[calc(100dvh-120px)] sm:min-h-[calc(100vh-140px)] w-full flex flex-col items-center justify-center select-none px-4 sm:px-6 my-auto animate-fade-in ${className}`}
       aria-busy="true"
       role="status"
     >

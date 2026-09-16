@@ -18,6 +18,8 @@ import {
   X,
   Volume2,
   Film,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { HeroLivePreview } from '@/components/admin/HeroLivePreview';
 import { MediaPickerModal } from '@/components/admin/MediaPickerModal';
@@ -100,7 +102,35 @@ export function AppearanceSettingsCard({ initialSettings, onSaved }: AppearanceS
 
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [mediaPickerTarget, setMediaPickerTarget] = useState<'hero' | 'blog' | 'projects' | 'journey' | 'about' | 'ai' | null>(null);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<'hero' | 'blog' | 'projects' | 'journey' | 'about' | 'ai' | 'avatar' | null>(null);
+  const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('请选择图片文件 (JPG / PNG / WebP)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('头像图片大小请控制在 5MB 以内');
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const media = await api.uploadMedia(file);
+      if (media && media.url) {
+        setSettings((prev) => ({ ...prev, avatar: media.url }));
+        toast.success('头像上传成功，点击右上角「保存外观视觉」即可刷新生效！');
+      }
+    } catch (err: any) {
+      toast.error(err.message || '上传头像失败');
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     if (initialSettings) {
@@ -246,6 +276,9 @@ export function AppearanceSettingsCard({ initialSettings, onSaved }: AppearanceS
           if (mediaPickerTarget === 'hero') {
             setSettings((prev) => ({ ...prev, heroVideoUrl: media.url, heroBgType: 'video' }));
             toast.success(`已选用 Hero 云端视频「${media.filename}」，保存后即刻生效`);
+          } else if (mediaPickerTarget === 'avatar') {
+            setSettings((prev) => ({ ...prev, avatar: media.url }));
+            toast.success(`已选用站长头像「${media.filename}」，保存后即刻生效`);
           } else if (mediaPickerTarget) {
             const pageKey = mediaPickerTarget as keyof PageVisualsConfig;
             const isVideo = media.mimeType?.startsWith('video/') || !!media.url?.match(/\.(mp4|webm|mov)$/i);
@@ -349,8 +382,11 @@ export function AppearanceSettingsCard({ initialSettings, onSaved }: AppearanceS
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="font-medium text-slate-700 dark:text-zinc-300">站长公开邮箱 (Email)</label>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="font-medium text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-emerald-500" />
+                  <span>站长公开邮箱 (Email)</span>
+                </label>
                 <input
                   type="email"
                   value={settings.email || ''}
@@ -359,15 +395,97 @@ export function AppearanceSettingsCard({ initialSettings, onSaved }: AppearanceS
                   placeholder="admin@haydenxue.com"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="font-medium text-slate-700 dark:text-zinc-300">站长头像直链 (Avatar URL)</label>
-                <input
-                  type="text"
-                  value={settings.avatar || ''}
-                  onChange={(e) => setSettings({ ...settings, avatar: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50/70 dark:bg-black/40 border border-slate-200 dark:border-white/[0.08] text-slate-900 dark:text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
-                  placeholder="https://... 或 MinIO 图片直链"
-                />
+            </div>
+
+            {/* 站长专属形象与关于页头像 (Avatar) 高级设置卡片 */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.08] space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-emerald-500" />
+                    <span>站长肖像与关于页头像 (Avatar)</span>
+                  </label>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                    展示在「关于自述 (/about)」电影序章光环、成长纪元编年史、站长工牌及全站各处
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-1">
+                {/* 圆形头像实时预览 */}
+                <div className="relative group shrink-0">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-emerald-500/50 bg-slate-200 dark:bg-neutral-800 flex items-center justify-center shadow-lg shadow-emerald-500/10 p-0.5 bg-gradient-to-br from-emerald-500/30 to-teal-500/20">
+                    <div className="w-full h-full rounded-full overflow-hidden relative">
+                      {settings.avatar ? (
+                        <img
+                          src={settings.avatar}
+                          alt="Avatar Preview"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-neutral-900">
+                          <UserCheck className="w-8 h-8 text-slate-400 dark:text-zinc-500" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {settings.avatar && (
+                    <button
+                      type="button"
+                      onClick={() => setSettings((prev) => ({ ...prev, avatar: '' }))}
+                      className="absolute -top-1 -right-1 p-1 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      title="清除头像"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* 快捷操作区 */}
+                <div className="flex-1 space-y-2.5 w-full">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* 隐藏的本地文件上传控件 */}
+                    <input
+                      ref={avatarFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                    />
+
+                    <button
+                      type="button"
+                      disabled={uploadingAvatar}
+                      onClick={() => avatarFileInputRef.current?.click()}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      {uploadingAvatar ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5" />
+                      )}
+                      <span>{uploadingAvatar ? '正在上传图片...' : '本地上传新头像'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMediaPickerTarget('avatar')}
+                      className="px-3.5 py-2 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-700 border border-slate-200 dark:border-white/[0.1] text-slate-700 dark:text-zinc-300 text-xs font-medium shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>从媒体资产库挑选</span>
+                    </button>
+                  </div>
+
+                  {/* 直链输入与微调 */}
+                  <input
+                    type="text"
+                    value={settings.avatar || ''}
+                    onChange={(e) => setSettings({ ...settings, avatar: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-black/40 border border-slate-200 dark:border-white/[0.08] text-slate-900 dark:text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
+                    placeholder="或直接粘贴图片 URL (支持外部 https://... 或 MinIO 分布式存储直链)"
+                  />
+                </div>
               </div>
             </div>
 
