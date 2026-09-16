@@ -105,17 +105,21 @@ services:
       dockerfile: Dockerfile
     container_name: hayden-backend
     restart: always
+    ports:
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      DB_HOST: mysql
-      DB_PORT: 3306
+      DB_HOST: ${DB_HOST:-1Panel-mysql-qKVL}
+      DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-hayden_blog}
       DB_USER: ${DB_USER:-hayden}
       DB_PASS: ${DB_PASS:-HaydenPass_2026!Sec}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_HOST: ${REDIS_HOST:-1Panel-redis-Kupr}
+      REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-HaydenRedis_2026!Sec}
-      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://1Panel-minio-nnF3:9000}
       MINIO_BUCKET: ${MINIO_BUCKET:-hayden-blog}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-HaydenMinio_2026!Sec}
@@ -126,12 +130,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
     networks:
-      - hayden-net
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - 1panel-network
     logging:
       driver: "json-file"
       options:
@@ -148,13 +147,17 @@ services:
       dockerfile: Dockerfile
     container_name: hayden-frontend
     restart: always
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
       PORT: 3000
       INTERNAL_API_BASE: http://backend:8080
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-}
     networks:
-      - hayden-net
+      - 1panel-network
     depends_on:
       - backend
     logging:
@@ -189,5 +192,7 @@ services:
         max-file: "3"
 
 networks:
+  1panel-network:
+    external: true
   hayden-net:
     driver: bridge

@@ -1,0 +1,5 @@
+@echo off
+chcp 65001 >nul
+echo ?? ???? Hayden Blog ?????????...
+powershell -ExecutionPolicy Bypass -File "%~dp0deploy\deploy.ps1"
+pause
