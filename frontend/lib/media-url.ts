@@ -51,6 +51,13 @@ export function normalizeMediaUrl(url?: string | null): string {
     return rawClean;
   }
 
+  // 4. 针对阿里云 OSS 默认域名 (*.aliyuncs.com) 自动映射为服务端极速流媒体代理
+  // 解决阿里云官方对默认域名强制返回 Content-Disposition: attachment 导致浏览器强行下载与无法作为网页图片内联显示的限制
+  const ossMatch = trimmed.match(/^https?:\/\/[a-z0-9-]+\.(?:oss|s3\.oss)-[a-z0-9-]+\.aliyuncs\.com\/(.+)$/i);
+  if (ossMatch && ossMatch[1]) {
+    return `/api/media/view/${ossMatch[1]}`;
+  }
+
   return trimmed;
 }
 

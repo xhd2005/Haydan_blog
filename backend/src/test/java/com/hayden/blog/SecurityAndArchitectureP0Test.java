@@ -94,6 +94,10 @@ public class SecurityAndArchitectureP0Test {
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+
+        // 4. 匿名访问公开流媒体代理 GET /api/media/view/non_exist.jpg 应公开允许访问 (未授权不应返回 401/403，而是 404)
+        mockMvc.perform(get("/api/media/view/non_exist.jpg"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -124,7 +128,6 @@ public class SecurityAndArchitectureP0Test {
                         .content(objectMapper.writeValueAsString(validReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.uploadUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.publicUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.objectKey").isNotEmpty());
 

@@ -16,4 +16,6 @@ public interface MediaService extends IService<Media> {
     PageResult<Media> getMediaList(Long page, Long pageSize, String keyword);
 
     void deleteMedia(Long id);
+
+    com.hayden.blog.dto.MediaStreamResponse getMediaStream(String objectKey);
 }

@@ -333,4 +333,76 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
             removeById(id);
         }
     }
+
+    @Override
+    public com.hayden.blog.dto.MediaStreamResponse getMediaStream(String objectKey) {
+        if (!StringUtils.hasText(objectKey)) {
+            throw new BusinessException(400, "对象键不能为空");
+        }
+        String key = objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
+
+        // 1. 查询数据库获取元数据（若存在）
+        Media media = getOne(new LambdaQueryWrapper<Media>()
+                .eq(Media::getObjectKey, key)
+                .last("LIMIT 1"));
+
+        StorageService targetService;
+        if (media != null && StringUtils.hasText(media.getStorageType())) {
+            targetService = storageFactory.getStorageService(media.getStorageType());
+        } else {
+            targetService = storageFactory.getStorageService();
+        }
+
+        java.io.InputStream is = null;
+        try {
+            is = targetService.getInputStream(key);
+        } catch (Exception e) {
+            // 如果指定存储引擎读取失败，尝试兜底遍历其他可用存储引擎（OSS / MinIO / Local）
+            log.debug("从指定存储引擎 [{}] 读取对象流失败，尝试备用引擎: {}", targetService.getStorageType(), e.getMessage());
+            for (StorageService fallbackService : java.util.List.of(
+                    storageFactory.getAliyunOssStorageService(),
+                    storageFactory.getMinioStorageService(),
+                    storageFactory.getLocalStorageService())) {
+                if (fallbackService != targetService) {
+                    try {
+                        is = fallbackService.getInputStream(key);
+                        if (is != null) {
+                            log.info("备用存储引擎 [{}] 成功命中对象流 [key={}]", fallbackService.getStorageType(), key);
+                            break;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        if (is == null) {
+            throw new BusinessException(404, "无法在任何存储引擎中找到该多媒体对象: " + key);
+        }
+
+        // 2. 推断 MIME 类型
+        String contentType;
+        if (media != null && StringUtils.hasText(media.getMimeType())) {
+            contentType = media.getMimeType();
+        } else {
+            String lowerKey = key.toLowerCase();
+            int dotIdx = lowerKey.lastIndexOf('.');
+            String ext = dotIdx > -1 ? lowerKey.substring(dotIdx) : "";
+            contentType = switch (ext) {
+                case ".jpg", ".jpeg" -> "image/jpeg";
+                case ".png" -> "image/png";
+                case ".webp" -> "image/webp";
+                case ".gif" -> "image/gif";
+                case ".svg" -> "image/svg+xml";
+                case ".mp4" -> "video/mp4";
+                case ".webm" -> "video/webm";
+                case ".mp3" -> "audio/mpeg";
+                default -> "application/octet-stream";
+            };
+        }
+
+        long size = media != null && media.getSize() != null ? media.getSize() : 0L;
+        String eTag = "\"" + Integer.toHexString(key.hashCode()) + "\"";
+
+        return new com.hayden.blog.dto.MediaStreamResponse(is, contentType, size, eTag);
+    }
 }

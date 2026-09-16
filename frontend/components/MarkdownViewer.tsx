@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, Copy, Code2 } from 'lucide-react';
+import { Check, Copy, Code2, Info, Lightbulb, AlertTriangle, AlertCircle, AlertOctagon } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { useI18n } from '@/lib/i18n';
 import { useAiCodeLens, AiCodeLensButton, AiCodeLensPanel } from './blog/AiCodeLensDrawer';
@@ -16,10 +16,28 @@ export function formatPangu(text: string): string {
     .replace(/([A-Za-z0-9_`~+=\-/*#])([\u4e00-\u9fa5])/g, '$1 $2');
 }
 
-// 递归格式化 ReactNode 中的纯文本中英文间距
+// 递归格式化 ReactNode 中的纯文本中英文间距与 ==高亮标注==
 function applyPanguToChildren(children: React.ReactNode): React.ReactNode {
   if (typeof children === 'string') {
-    return formatPangu(children);
+    const pangu = formatPangu(children);
+    if (pangu.includes('==')) {
+      const parts = pangu.split(/(==[^=]+==)/g);
+      return parts.map((part, idx) => {
+        if (part.startsWith('==') && part.endsWith('==') && part.length > 4) {
+          const inner = part.slice(2, -2);
+          return (
+            <mark
+              key={idx}
+              className="px-1.5 py-0.5 mx-0.5 rounded-md bg-amber-400/25 dark:bg-amber-500/25 text-amber-900 dark:text-amber-200 font-medium border-b-2 border-amber-500/60"
+            >
+              {inner}
+            </mark>
+          );
+        }
+        return part;
+      });
+    }
+    return pangu;
   }
   if (Array.isArray(children)) {
     return React.Children.map(children, (child) => applyPanguToChildren(child));
@@ -257,13 +275,99 @@ export function MarkdownViewer({ content = '', className = '' }: MarkdownViewerP
               {applyPanguToChildren(children)}
             </li>
           ),
-          blockquote: ({ node, children, ...props }) => (
-            <blockquote
-              className="border-l-4 border-emerald-500 bg-secondary/40 pl-4 py-3 my-5 rounded-r-xl text-muted-foreground italic leading-relaxed"
-              {...props}
-            >
-              {applyPanguToChildren(children)}
-            </blockquote>
+          blockquote: ({ node, children, ...props }: any) => {
+            const childArray = React.Children.toArray(children);
+            let calloutType: 'note' | 'tip' | 'warning' | 'important' | 'caution' | null = null;
+            let cleanedChildren = children;
+
+            const firstChild = childArray[0];
+            if (firstChild && React.isValidElement(firstChild) && (firstChild.props as any)?.children) {
+              const innerChildren = React.Children.toArray((firstChild.props as any).children);
+              const firstText = typeof innerChildren[0] === 'string' ? innerChildren[0] : '';
+              const match = firstText.match(/^\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]\s*(.*)$/i);
+              if (match) {
+                calloutType = match[1].toLowerCase() as any;
+                const remainingText = match[2];
+                const newInnerChildren = [...innerChildren];
+                if (remainingText) {
+                  newInnerChildren[0] = remainingText;
+                } else {
+                  newInnerChildren.shift();
+                }
+                const newFirstChild = React.cloneElement(firstChild, {}, ...newInnerChildren);
+                cleanedChildren = [newFirstChild, ...childArray.slice(1)];
+              }
+            }
+
+            if (calloutType) {
+              const configs = {
+                note: {
+                  border: 'border-blue-500/80',
+                  bg: 'bg-blue-500/[0.08] dark:bg-blue-500/[0.12]',
+                  icon: <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />,
+                  title: '提示 (NOTE)',
+                  text: 'text-blue-900 dark:text-blue-200',
+                },
+                tip: {
+                  border: 'border-emerald-500/80',
+                  bg: 'bg-emerald-500/[0.08] dark:bg-emerald-500/[0.12]',
+                  icon: <Lightbulb className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />,
+                  title: '技巧 (TIP)',
+                  text: 'text-emerald-900 dark:text-emerald-200',
+                },
+                warning: {
+                  border: 'border-amber-500/80',
+                  bg: 'bg-amber-500/[0.08] dark:bg-amber-500/[0.12]',
+                  icon: <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />,
+                  title: '注意 (WARNING)',
+                  text: 'text-amber-900 dark:text-amber-200',
+                },
+                important: {
+                  border: 'border-purple-500/80',
+                  bg: 'bg-purple-500/[0.08] dark:bg-purple-500/[0.12]',
+                  icon: <AlertCircle className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />,
+                  title: '重要 (IMPORTANT)',
+                  text: 'text-purple-900 dark:text-purple-200',
+                },
+                caution: {
+                  border: 'border-rose-500/80',
+                  bg: 'bg-rose-500/[0.08] dark:bg-rose-500/[0.12]',
+                  icon: <AlertOctagon className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />,
+                  title: '警告 (CAUTION)',
+                  text: 'text-rose-900 dark:text-rose-200',
+                },
+              };
+              const c = configs[calloutType];
+              return (
+                <div className={`my-5 rounded-2xl border-l-4 ${c.border} ${c.bg} p-4 text-sm shadow-xs backdrop-blur-xs`}>
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider mb-2">
+                    {c.icon}
+                    <span>{c.title}</span>
+                  </div>
+                  <div className={`leading-relaxed ${c.text}`}>{applyPanguToChildren(cleanedChildren)}</div>
+                </div>
+              );
+            }
+
+            return (
+              <blockquote
+                className="border-l-4 border-emerald-500/80 bg-secondary/30 dark:bg-zinc-800/30 pl-4 py-3 my-5 rounded-r-2xl text-muted-foreground italic leading-relaxed"
+                {...props}
+              >
+                {applyPanguToChildren(children)}
+              </blockquote>
+            );
+          },
+          details: ({ node, children, ...props }: any) => (
+            <details className="my-4 rounded-2xl border border-border/80 bg-secondary/20 dark:bg-zinc-800/20 p-4 transition-all duration-200 group" {...props}>
+              {children}
+            </details>
+          ),
+          summary: ({ node, children, ...props }: any) => (
+            <summary className="font-semibold text-foreground cursor-pointer select-none list-none flex items-center justify-between gap-2 text-sm" {...props}>
+              <span>{applyPanguToChildren(children)}</span>
+              <span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform duration-200">▼</span>
+            </summary>
           ),
           code: ({ node, inline, className: codeClassName, children, ...props }: any) => {
             if (inline) {
@@ -303,22 +407,26 @@ export function MarkdownViewer({ content = '', className = '' }: MarkdownViewerP
               {applyPanguToChildren(children)}
             </a>
           ),
-          img: ({ node, src, alt, ...props }: any) => (
-            <span className="block my-8">
-              <SafeImage
-                src={src || ''}
-                alt={alt || ''}
-                aspectRatio="16/9"
-                containerClassName="rounded-2xl border border-border shadow-md max-h-[500px] w-full"
-                className="max-h-[500px] w-full object-cover"
-              />
-              {alt && (
-                <span className="block text-center text-xs text-muted-foreground mt-2.5 font-mono">
-                  {alt}
-                </span>
-              )}
-            </span>
-          ),
+          img: ({ node, src, alt, title, ...props }: any) => {
+            const caption = title || alt;
+            return (
+              <figure className="my-8 flex flex-col items-center">
+                <SafeImage
+                  src={src || ''}
+                  alt={alt || ''}
+                  aspectRatio="auto"
+                  containerClassName="rounded-2xl border border-border/80 shadow-md max-h-[650px] w-auto max-w-full overflow-hidden"
+                  className="max-h-[650px] w-auto max-w-full object-contain mx-auto transition-transform duration-300 hover:scale-[1.01]"
+                />
+                {caption && (
+                  <figcaption className="mt-2.5 px-3.5 py-1 rounded-full text-center text-xs text-muted-foreground/80 font-mono bg-secondary/50 dark:bg-zinc-800/50 border border-border/40 inline-flex items-center gap-1.5 shadow-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse shrink-0" />
+                    <span>{caption}</span>
+                  </figcaption>
+                )}
+              </figure>
+            );
+          },
           hr: ({ node, ...props }) => (
             <hr className="my-10 border-border" {...props} />
           ),

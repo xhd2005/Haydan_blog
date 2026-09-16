@@ -129,4 +129,18 @@ public non-sealed class LocalStorageServiceImpl implements StorageService {
             return false;
         }
     }
+
+    @Override
+    public InputStream getInputStream(String objectKey) {
+        Path filePath = resolveAndValidatePath(objectKey);
+        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+            throw new BusinessException(404, "本地存储文件不存在: " + objectKey);
+        }
+        try {
+            return Files.newInputStream(filePath);
+        } catch (IOException e) {
+            log.error("读取本地文件流异常 [key={}]: ", objectKey, e);
+            throw new BusinessException(500, "读取本地文件流失败: " + e.getMessage());
+        }
+    }
 }

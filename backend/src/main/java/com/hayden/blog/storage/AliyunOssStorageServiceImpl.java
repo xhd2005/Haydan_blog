@@ -170,27 +170,23 @@ public non-sealed class AliyunOssStorageServiceImpl implements StorageService {
         String key = objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
         String bucket = config.bucket() != null ? config.bucket().trim() : "";
 
+        // 若用户配置了独立的已备案自定义加速域名（例如 https://img.haydenxue.com 或 CDN 域名），且未包含官方默认后缀 aliyuncs.com
         if (StringUtils.hasText(config.publicUrl())) {
             String pub = config.publicUrl().trim();
             if (pub.endsWith("/")) {
                 pub = pub.substring(0, pub.length() - 1);
             }
-            // 若 Public URL 已经包含了 bucket（如 https://hayden-blog.oss-cn-hangzhou.aliyuncs.com）
-            if (StringUtils.hasText(bucket) && (pub.endsWith("/" + bucket) || pub.contains("://" + bucket + ".") || pub.contains("." + bucket + "."))) {
+            if (!pub.contains(".aliyuncs.com")) {
+                if (StringUtils.hasText(bucket) && (pub.endsWith("/" + bucket) || pub.contains("://" + bucket + "."))) {
+                    return pub + "/" + key;
+                }
                 return pub + "/" + key;
             }
-            // 若为地域主域名 https://oss-cn-beijing.aliyuncs.com 且未包含 bucket，转换为规范的虚拟主机域名
-            if (StringUtils.hasText(bucket) && pub.contains(".aliyuncs.com") && !pub.contains(bucket)) {
-                return pub.replace("://", "://" + bucket + ".") + "/" + key;
-            }
-            return StringUtils.hasText(bucket) ? pub + "/" + bucket + "/" + key : pub + "/" + key;
         }
 
-        String ep = normalizeEndpoint(config.endpoint());
-        if (StringUtils.hasText(bucket) && ep.contains(".aliyuncs.com") && !ep.contains(bucket)) {
-            return ep.replace("://", "://" + bucket + ".") + "/" + key;
-        }
-        return StringUtils.hasText(bucket) ? ep + "/" + bucket + "/" + key : ep + "/" + key;
+        // 阿里云 OSS 默认域名 (*.aliyuncs.com) 官方会强制在响应头注入 Content-Disposition: attachment 和 x-oss-force-download: true
+        // 导致浏览器无法作为网页图片正常显示。故默认自动走服务端极速安全流媒体代理 (/api/media/view/**)，由服务端重写 inline 响应头并强缓存
+        return "/api/media/view/" + key;
     }
 
     @Override
@@ -256,6 +252,23 @@ public non-sealed class AliyunOssStorageServiceImpl implements StorageService {
         } catch (Exception e) {
             log.error("生成阿里云 OSS 预签名上传链接失败 [bucket={}, key={}]: ", config.bucket(), objectKey, e);
             throw new BusinessException(500, "生成阿里云预签名上传 URL 失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public InputStream getInputStream(String objectKey) {
+        OssConfig config = getEffectiveConfig();
+        try {
+            MinioClient client = buildClient(config.endpoint(), config.accessKey(), config.secretKey());
+            return client.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(config.bucket())
+                            .object(objectKey)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("读取阿里云 OSS 文件流失败 [bucket={}, key={}]: {}", config.bucket(), objectKey, e.getMessage());
+            throw new BusinessException(404, "阿里云 OSS 对象不存在或读取失败: " + e.getMessage());
         }
     }
 

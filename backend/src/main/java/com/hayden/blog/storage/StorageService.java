@@ -62,4 +62,12 @@ public sealed interface StorageService permits LocalStorageServiceImpl, MinioSto
     default String generatePresignedUploadUrl(String objectKey, int expirySeconds) {
         return null;
     }
+
+    /**
+     * 获取指定对象的输入流（用于服务端安全流媒体代理，绕开跨域与强制下载限制）
+     *
+     * @param objectKey 目标相对存储路径
+     * @return 文件输入流
+     */
+    InputStream getInputStream(String objectKey);
 }

@@ -4,6 +4,7 @@ import com.hayden.blog.entity.SiteSetting;
 import com.hayden.blog.exception.BusinessException;
 import com.hayden.blog.service.SiteSettingService;
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -318,6 +319,23 @@ public non-sealed class MinioStorageServiceImpl implements StorageService {
         } catch (Exception e) {
             log.warn("MinIO 连通性测试未通过 [endpoint={}, bucket={}]: {}", endpoint, bucket, e.getMessage());
             return false;
+        }
+    }
+
+    @Override
+    public InputStream getInputStream(String objectKey) {
+        MinioConfig config = getEffectiveConfig();
+        try {
+            MinioClient client = buildClient(config.endpoint(), config.accessKey(), config.secretKey());
+            return client.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(config.bucket())
+                            .object(objectKey)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("读取 MinIO 文件流失败 [bucket={}, key={}]: {}", config.bucket(), objectKey, e.getMessage());
+            throw new BusinessException(404, "MinIO 对象不存在或读取失败: " + e.getMessage());
         }
     }
 

@@ -31,11 +31,21 @@ import {
   Minimize2,
   AlignLeft,
   ChevronsUpDown,
+  Library,
+  Highlighter,
+  LayoutGrid,
+  Info,
+  AlertTriangle,
+  AlertCircle,
+  ChevronDown,
 } from 'lucide-react';
 import { MarkdownViewer } from './MarkdownViewer';
 import { InlineAiCopilot } from './admin/InlineAiCopilot';
+import { MediaPickerModal } from './admin/MediaPickerModal';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { Media } from '@/lib/types';
+import { normalizeMediaUrl } from '@/lib/media-url';
 
 export interface TocItem {
   id: string;
@@ -131,6 +141,11 @@ export function MarkdownEditor({
   const [internalSavedTime, setInternalSavedTime] = useState<string | null>(null);
   const [internalDraftAvailable, setInternalDraftAvailable] = useState(false);
   const [showToc, setShowToc] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [layoutDropdownOpen, setLayoutDropdownOpen] = useState(false);
+  const [calloutDropdownOpen, setCalloutDropdownOpen] = useState(false);
+  const isScrollingRef = useRef<'editor' | 'preview' | null>(null);
 
   // 选中文本悬浮气泡菜单 (Floating Selection Bubble Bar)
   const [bubbleMenu, setBubbleMenu] = useState<{
@@ -333,6 +348,16 @@ export function MarkdownEditor({
     }
   };
 
+  // 从媒体资产库选择图片插入正文
+  const handleSelectMedia = (media: Media) => {
+    const rawUrl = media.url || '';
+    const normUrl = normalizeMediaUrl(rawUrl);
+    const alt = media.filename || '图片';
+    insertText(`\n![${alt}](`, `)\n`, normUrl);
+    setMediaPickerOpen(false);
+    toast.success(`已插入媒体图片: ${alt}`);
+  };
+
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -351,7 +376,19 @@ export function MarkdownEditor({
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       const droppedFiles: File[] = [];
@@ -361,10 +398,37 @@ export function MarkdownEditor({
         }
       }
       if (droppedFiles.length > 0) {
-        e.preventDefault();
         handleMultipleImageFiles(droppedFiles);
       }
     }
+  };
+
+  const handleEditorScroll = () => {
+    if (isScrollingRef.current === 'preview') return;
+    isScrollingRef.current = 'editor';
+    const textarea = textareaRef.current;
+    const preview = previewContainerRef.current;
+    if (textarea && preview) {
+      const scrollRatio = textarea.scrollTop / (textarea.scrollHeight - textarea.clientHeight || 1);
+      preview.scrollTop = scrollRatio * (preview.scrollHeight - preview.clientHeight);
+    }
+    setTimeout(() => {
+      if (isScrollingRef.current === 'editor') isScrollingRef.current = null;
+    }, 80);
+  };
+
+  const handlePreviewScroll = () => {
+    if (isScrollingRef.current === 'editor') return;
+    isScrollingRef.current = 'preview';
+    const textarea = textareaRef.current;
+    const preview = previewContainerRef.current;
+    if (textarea && preview) {
+      const scrollRatio = preview.scrollTop / (preview.scrollHeight - preview.clientHeight || 1);
+      textarea.scrollTop = scrollRatio * (textarea.scrollHeight - textarea.clientHeight);
+    }
+    setTimeout(() => {
+      if (isScrollingRef.current === 'preview') isScrollingRef.current = null;
+    }, 80);
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -530,6 +594,155 @@ export function MarkdownEditor({
           >
             <ImageIcon className="w-4 h-4" />
           </button>
+          <button
+            type="button"
+            onClick={() => setMediaPickerOpen(true)}
+            title="从媒体资产库选择图片插入正文 (免重新上传)"
+            className="p-1.5 rounded-lg hover:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 transition-colors cursor-pointer flex items-center gap-1 font-medium"
+          >
+            <Library className="w-4 h-4" />
+            <span className="hidden sm:inline text-[11px]">媒体库</span>
+          </button>
+          <div className="w-px h-4 bg-slate-300 dark:bg-white/[0.1] mx-1" />
+
+          {/* 高亮重点标注 */}
+          <button
+            type="button"
+            onClick={() => insertText('==', '==', '高亮重点文本')}
+            title="高亮标注 (==重点文本==)"
+            className="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 transition-colors cursor-pointer"
+          >
+            <Highlighter className="w-4 h-4" />
+          </button>
+
+          {/* 彩色提示卡片 (Callout) 下拉菜单 */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setCalloutDropdownOpen(!calloutDropdownOpen);
+                setLayoutDropdownOpen(false);
+              }}
+              title="插入提示卡片 (Note, Tip, Warning...)"
+              className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer flex items-center gap-0.5"
+            >
+              <Info className="w-4 h-4" />
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+            {calloutDropdownOpen && (
+              <div
+                className="absolute left-0 top-full mt-1 w-48 rounded-2xl border border-slate-200 dark:border-white/[0.1] bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md shadow-2xl p-1.5 z-30 flex flex-col gap-1 text-xs"
+                onMouseLeave={() => setCalloutDropdownOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    insertText('\n> [!NOTE]\n> ', '', '在这里输入信息说明...\n\n');
+                    setCalloutDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-2"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  <span>提示 (NOTE)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    insertText('\n> [!TIP]\n> ', '', '在这里输入实用技巧与经验...\n\n');
+                    setCalloutDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>技巧 (TIP)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    insertText('\n> [!WARNING]\n> ', '', '在这里输入避坑与警告...\n\n');
+                    setCalloutDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center gap-2"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>注意 (WARNING)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    insertText('\n> [!IMPORTANT]\n> ', '', '在这里输入核心重要事项...\n\n');
+                    setCalloutDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center gap-2"
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>重要 (IMPORTANT)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 高级图文与画廊排版 (Layout) 下拉菜单 */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setLayoutDropdownOpen(!layoutDropdownOpen);
+                setCalloutDropdownOpen(false);
+              }}
+              title="图文高级排版预设 (居中、画廊、折叠)"
+              className="p-1.5 rounded-lg hover:bg-slate-200/80 dark:hover:bg-white/[0.08] text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer flex items-center gap-0.5"
+            >
+              <LayoutGrid className="w-4 h-4" />
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+            {layoutDropdownOpen && (
+              <div
+                className="absolute left-0 top-full mt-1 w-52 rounded-2xl border border-slate-200 dark:border-white/[0.1] bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md shadow-2xl p-1.5 z-30 flex flex-col gap-1 text-xs"
+                onMouseLeave={() => setLayoutDropdownOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    insertText('\n<div align="center">\n\n![图片描述](', ' "图注说明")\n\n</div>\n', 'https://example.com/image.jpg');
+                    setLayoutDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] flex items-center gap-2 text-slate-700 dark:text-zinc-200"
+                >
+                  <span>🖼️ 居中展示 + 图注</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    insertText(
+                      '\n<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">\n\n![左图描述](https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800 "第一张图片图注")\n\n![右图描述](https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800 "第二张图片图注")\n\n</div>\n',
+                      '',
+                      ''
+                    );
+                    setLayoutDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] flex items-center gap-2 text-slate-700 dark:text-zinc-200"
+                >
+                  <span>🔲 双图并排画廊</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    insertText(
+                      '\n<details>\n<summary>点击展开详情说明</summary>\n\n',
+                      '\n\n</details>\n',
+                      '这里是折叠的详细补充内容或长篇代码...'
+                    );
+                    setLayoutDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] flex items-center gap-2 text-slate-700 dark:text-zinc-200"
+                >
+                  <span>📂 折叠面板 (Details)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <input
             type="file"
             ref={fileInputRef}
@@ -641,16 +854,19 @@ export function MarkdownEditor({
               className={`relative flex flex-col h-full overflow-y-auto ${
                 mode === 'zen' ? 'w-full max-w-4xl mx-auto px-4 sm:px-8 py-6' : 'flex-1 p-5'
               }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
               <textarea
                 ref={textareaRef}
                 value={value}
                 onChange={handleInputWithScroll}
+                onScroll={handleEditorScroll}
                 onSelect={handleSelectText}
                 onMouseUp={handleSelectText}
                 onKeyUp={handleSelectText}
                 onPaste={handlePaste}
-                onDrop={handleDrop}
                 placeholder={placeholder}
                 className="w-full flex-1 bg-transparent font-mono text-[14px] leading-[1.8] text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none resize-none selection:bg-emerald-500/20"
                 style={{
@@ -658,11 +874,29 @@ export function MarkdownEditor({
                 }}
               />
 
+              {/* 拖拽文件进入悬浮提示遮罩 */}
+              {isDraggingOver && (
+                <div className="absolute inset-2 z-30 bg-emerald-500/10 dark:bg-emerald-500/20 backdrop-blur-xs border-2 border-dashed border-emerald-500/80 rounded-2xl flex flex-col items-center justify-center gap-2.5 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                  <div className="p-3 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                    <ImageIcon className="w-8 h-8 animate-bounce" />
+                  </div>
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                    松开鼠标即可极速上传图片到云端存储
+                  </p>
+                  <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 font-mono">
+                    支持单张或多张图片自动秒传并按光标位置排版
+                  </p>
+                </div>
+              )}
+
               {/* 上传进度悬浮浮窗 */}
               {uploading && (
-                <div className="absolute inset-0 bg-white/70 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center gap-3 text-xs font-semibold z-20 animate-in fade-in">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
-                  <span>{uploadProgress || '正在直传对象存储...'}</span>
+                <div className="absolute inset-0 bg-white/80 dark:bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2.5 text-xs font-semibold z-20 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="font-bold">{uploadProgress || '正在直传对象存储...'}</span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">企业级 CAS 秒传已启用 · 正在流式写入云端</span>
                 </div>
               )}
             </div>
@@ -672,6 +906,7 @@ export function MarkdownEditor({
           {(mode === 'split' || mode === 'preview') && (
             <div
               ref={previewContainerRef}
+              onScroll={handlePreviewScroll}
               className={`flex-1 overflow-y-auto ${
                 mode === 'preview' ? 'max-w-4xl mx-auto p-8 sm:p-12' : 'p-6'
               } bg-slate-50/40 dark:bg-black/20`}
@@ -849,6 +1084,15 @@ export function MarkdownEditor({
           onClose={() => setCopilotOpen(false)}
         />
       )}
+
+      {/* 媒体资产库选择模态框 (AGENTS.md 铁律 2: 真实数据驱动) */}
+      <MediaPickerModal
+        open={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onSelect={handleSelectMedia}
+        mimePrefix="image/"
+        title="从媒体资产库选择图片插入正文"
+      />
     </div>
   );
 }
