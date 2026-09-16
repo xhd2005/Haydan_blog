@@ -59,7 +59,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return json.data;
   } catch (err: any) {
     if (typeof window === 'undefined') {
-      console.error(`[Server API Error] 请求 ${url} 失败:`, err.message);
+      const isConnError = err?.message?.includes('fetch failed') || err?.code === 'ECONNREFUSED';
+      // 在 Next.js 静态构建打包期 (SSG)，后端服务未启动属于正常预期，抑制无害警告
+      if (!isConnError) {
+        console.error(`[Server API Error] 请求 ${url} 失败:`, err.message);
+      }
     }
     throw err;
   }
