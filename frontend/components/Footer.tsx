@@ -2,12 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 import { SiteSetting } from '@/lib/types';
 import { useI18n } from '@/lib/i18n';
 import { Rss, Sparkles } from 'lucide-react';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 export function Footer() {
+  const pathname = usePathname();
   const { t } = useI18n();
   const [settings, setSettings] = useState<Partial<SiteSetting>>({});
 
@@ -17,12 +20,17 @@ export function Footer() {
     }).catch(() => {});
   }, []);
 
+  if (pathname === '/ai' || pathname?.startsWith('/ai/')) {
+    return null;
+  }
+
   return (
     <footer className="mt-auto border-t border-border bg-card/40 backdrop-blur-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
+              <BrandLogo size={20} animated={false} glow={false} />
               <span className="font-bold tracking-wider text-base">
                 {settings.siteName || 'HAYDEN XUE'}
               </span>
@@ -48,14 +56,12 @@ export function Footer() {
             <Link href="/journey" className="hover:text-foreground transition-colors">
               {t('nav.journey')}
             </Link>
-            <Link href="/now" className="hover:text-foreground transition-colors">
-              {t('nav.now')}
-            </Link>
             <Link href="/memos" className="hover:text-foreground transition-colors">
               {t('nav.memos')}
             </Link>
-            <Link href="/links" className="hover:text-foreground transition-colors">
-              {t('nav.links')}
+            <Link href="/links" className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors group">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse group-hover:shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+              <span>{t('nav.links')}</span>
             </Link>
             <Link href="/about" className="hover:text-foreground transition-colors">
               {t('nav.about')}
@@ -74,7 +80,7 @@ export function Footer() {
 
         <div className="mt-8 pt-6 border-t border-border/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
           <div className="flex flex-wrap items-center gap-3 text-center sm:text-left">
-            <p>{(settings.footerText ? settings.footerText.replace(/\s*\(Howard\)/gi, '') : `© ${new Date().getFullYear()} Hayden Xue. All rights reserved.`)}</p>
+            <p>{settings.footerText || `© ${new Date().getFullYear()} Hayden Xue. All rights reserved.`}</p>
             {settings.icpNumber && (
               <a
                 href="https://beian.miit.gov.cn"

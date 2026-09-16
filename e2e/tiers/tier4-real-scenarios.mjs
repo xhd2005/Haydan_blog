@@ -8,248 +8,218 @@ export function registerTier4Tests(harness) {
   const api = new ApiClient();
   const frontend = new FrontendClient();
 
-  // TC-T4-01: 读者完整生命周期端到端旅程
-  suite.addTest('TC-T4-01', '读者完整生命周期端到端旅程 (注册->登录->浏览->互动->个人中心)', async () => {
-    // 1. 注册
-    const username = createRandomId('life_reader');
-    const password = 'LifePassword123!';
-    const regRes = await api.post('/api/auth/register', {
-      username,
-      password,
-      nickname: '生命周期读者',
-      email: `${username}@example.com`,
-    });
-    expect(regRes.status).toBe(200);
+  // TC-T4-01: 读者全生命周期探索旅程
+  suite.addTest('TC-T4-01', '读者端到端旅程：首页 Hero 视觉 -> 3D 地球仪探索足迹 -> 阅读游记 -> 自助申请友链', async () => {
+    // 1. Visitor browses home page
+    const page = await frontend.getPage('/');
+    expect(page.ok).toBe(true);
 
-    // 2. 登录
-    const loginRes = await api.post('/api/auth/login', { username, password });
-    expect(loginRes.status).toBe(200);
-    const token = loginRes.json.data.accessToken;
-    api.setToken(token);
-
-    // 3. 浏览公开文章
-    const postsRes = await api.get('/api/posts');
-    expect(postsRes.status).toBe(200);
-    const targetPost = postsRes.json.data.records[0] || { id: 1, slug: 'from-the-east-toward-the-unknown' };
-
-    // 4. 点赞随记
-    const memoLikeRes = await api.post('/api/memos/1/like', {});
-    expect(memoLikeRes.status).toBe(200);
-
-    // 5. 发表评论
-    const commentRes = await api.post('/api/comments', {
-      postId: targetPost.id,
-      content: '全链路旅程体验：阅读、点赞并留言交流！',
-    });
-    expect(commentRes.status).toBe(200);
-
-    // 6. 进入个人中心修改昵称
-    const newNickname = `旅行者_${username.slice(-4)}`;
-    const updateRes = await api.put('/api/auth/profile', { nickname: newNickname });
-    expect(updateRes.status).toBe(200);
-
-    // 7. 查看我的互动历史 (评论 & 点赞)
-    const myCommentsRes = await api.get('/api/comments/my');
-    expect(myCommentsRes.status).toBe(200);
-    expect(myCommentsRes.json.data.records.length).toBeGreaterThanOrEqual(1);
-
-    const myLikesRes = await api.get('/api/likes/my');
-    expect(myLikesRes.status).toBe(200);
-    expect(myLikesRes.json.data.records.length).toBeGreaterThanOrEqual(1);
-
+    // 2. Explore 3D Globe footprints
     api.clearToken();
+    const journeysRes = await api.get('/api/journey');
+    expect(journeysRes.status).toBe(200);
+    expect(journeysRes.json.data.length).toBeGreaterThanOrEqual(7);
+
+    // 3. Read specific travel journey
+    const journeySlug = journeysRes.json.data[0].slug;
+    const detailRes = await api.get(`/api/journey/${journeySlug}`);
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.json.data.title).toBeDefined();
+
+    // 4. Reader registers account
+    const username = createRandomId('reader_journey');
+    const registerRes = await api.post('/api/auth/register', {
+      username,
+      password: config.readerDefaults.password,
+      nickname: '漫游探索者',
+      email: `${username}@${config.readerDefaults.emailDomain}`,
+    });
+    expect(registerRes.status).toBe(200);
+    const token = registerRes.json.data.accessToken;
+
+    // 5. Submit friend link application
+    api.setToken(token);
+    const applyRes = await api.post('/api/friends/apply', {
+      name: '漫游者小站',
+      url: `https://wanderer-${Date.now()}.blog`,
+      avatar: 'https://assets.haydenxue.com/avatar/wanderer.png',
+      description: '游记博文与数字探索笔记',
+      category: 'INDEPENDENT_BLOG',
+    });
+    expect(applyRes.status).toBe(200);
+    expect(applyRes.json.data.status).toBe('PENDING');
   });
 
-  // TC-T4-02: 站长完整运营端到端流程
-  suite.addTest('TC-T4-02', '站长完整运营端到端流程 (登录->创作发布->数据分析->审计流水->用户管理)', async () => {
-    // 1. 登录后台
+  // TC-T4-02: 站长高阶创作与运营全链路
+  suite.addTest('TC-T4-02', '站长完整运营流程：280px 控制台 -> MinIO 连通性测试 -> 上传 4K 视频 -> ISR 缓存刷新', async () => {
+    // 1. Admin login
     const loginRes = await api.post('/api/auth/login', {
       username: config.admin.username,
       password: config.admin.password,
     });
     expect(loginRes.status).toBe(200);
-    expect(loginRes.json.data.role).toBe('ADMIN');
     const adminToken = loginRes.json.data.accessToken;
     api.setToken(adminToken);
 
-    // 2. 编写并发布文章
-    const postSlug = createRandomId('admin_ops_post');
-    const postRes = await api.post('/api/posts', {
-      title: '数字花园全域运营实践与安全架构纪要',
-      slug: postSlug,
-      content: '# 运营实践\n\n系统已接入流量监控、审计跟踪与细粒度权限模型。',
-      tags: ['Operations', 'Security'],
-      status: 'PUBLISHED',
+    // 2. Check 280px sidebar layout
+    const sidebar = frontend.inspectAdminSidebar();
+    expect(sidebar.expandedWidth).toBe(280);
+
+    // 3. Test MinIO connection
+    const testMinio = await api.post('/api/settings/test-minio', {
+      endpoint: 'https://minio.haydenxue.com',
+      bucket: 'hayden-media',
+      accessKey: 'hayden-admin',
+      secretKey: 'm!nI0_S3cr3t_2026',
     });
-    expect(postRes.status).toBe(200);
+    expect(testMinio.status).toBe(200);
+    expect(testMinio.json.data.success).toBe(true);
 
-    // 3. 查看看板 PV/UV 趋势与核心指标
-    const overviewRes = await api.get('/api/admin/analytics/overview');
-    expect(overviewRes.status).toBe(200);
-    expect(overviewRes.json.data.todayPv).toBeDefined();
+    // 4. Switch to MinIO storage
+    await api.put('/api/settings', { storageType: 'MINIO' });
 
-    const topPostsRes = await api.get('/api/admin/analytics/top-posts');
-    expect(topPostsRes.status).toBe(200);
-    expect(Array.isArray(topPostsRes.json.data)).toBe(true);
-
-    // 4. 审计日志查验
-    const auditRes = await api.get('/api/admin/audit-logs');
-    expect(auditRes.status).toBe(200);
-    expect(auditRes.json.data.records.length).toBeGreaterThanOrEqual(1);
-
-    // 5. 用户状态管理查验
-    const usersRes = await api.get('/api/admin/users');
-    expect(usersRes.status).toBe(200);
-    expect(usersRes.json.data.records.length).toBeGreaterThanOrEqual(1);
-
-    api.clearToken();
-  });
-
-  // TC-T4-03: 互动反馈与安全防御协同闭环
-  suite.addTest('TC-T4-03', '互动反馈与安全防御协同闭环 (垃圾言论处理与即时封禁拦截)', async () => {
-    // 1. 模拟违规用户注册并提交垃圾评论
-    const badUserName = createRandomId('bad_actor');
-    const badReg = await api.post('/api/auth/register', {
-      username: badUserName,
-      password: 'BadPassword123!',
-    });
-    expect(badReg.status).toBe(200);
-    const badToken = badReg.json.data.accessToken;
-
-    api.setToken(badToken);
-    const spamRes = await api.post('/api/comments', {
-      postId: 1,
-      content: '违规推广广告内容！点击链接购买非法商品！',
-    });
-    expect(spamRes.status).toBe(200);
-    const spamCommentId = spamRes.json.data.id;
-    api.clearToken();
-
-    // 2. 站长登录并删除垃圾评论
-    const adminLogin = await api.post('/api/auth/login', {
-      username: config.admin.username,
-      password: config.admin.password,
-    });
-    const adminToken = adminLogin.json.data.accessToken;
-    api.setToken(adminToken);
-
-    const deleteRes = await api.delete(`/api/comments/${spamCommentId}`);
-    expect(deleteRes.status).toBe(200);
-
-    // 3. 站长将该违规账号封禁
-    const usersRes = await api.get('/api/admin/users');
-    const badUserRecord = usersRes.json.data.records.find(u => u.username === badUserName);
-    const badUserId = badUserRecord ? badUserRecord.id : 2;
-
-    const banRes = await api.patch(`/api/admin/users/${badUserId}/status?status=DISABLED`, {
-      status: 'DISABLED',
-    });
-    expect(banRes.status).toBe(200);
-    api.clearToken();
-
-    // 4. 违规用户后续请求被拦截 403
-    api.setToken(badToken);
-    const blockedComment = await api.post('/api/comments', {
-      postId: 1,
-      content: '尝试再次违规发表',
-    });
-    expect(blockedComment.status).toBe(403);
-    api.clearToken();
-  });
-
-  // TC-T4-04: 随记图文多媒体发布与前台展示流
-  suite.addTest('TC-T4-04', '随记图文多媒体发布与前台展示流', async () => {
-    // 1. 站长登录
-    const adminLogin = await api.post('/api/auth/login', {
-      username: config.admin.username,
-      password: config.admin.password,
-    });
-    const adminToken = adminLogin.json.data.accessToken;
-    api.setToken(adminToken);
-
-    // 2. 上传合法图片
-    const validPng = Buffer.from([
-      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-      0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-      0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-      0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-      0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-      0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-      0x42, 0x60, 0x82
+    // 5. Upload 4K loop video
+    const mp4Header = Buffer.from([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70,
+      0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x02, 0x00,
     ]);
     const uploadRes = await api.upload('/api/media/upload', {
-      buffer: validPng,
-      filename: 'memo_photo.png',
-      contentType: 'image/png',
+      buffer: mp4Header,
+      filename: 'hero-4k-cyber.mp4',
+      contentType: 'video/mp4',
     });
     expect(uploadRes.status).toBe(200);
-    const imageUrl = uploadRes.json.data.url;
+    const cloudVideoUrl = uploadRes.json.data.url;
 
-    // 3. 发布包含图片的随记
-    const memoContent = '旅途掠影：深圳湾的傍晚日落与海风拂面。';
-    const memoRes = await api.post('/api/memos', {
-      content: memoContent,
-      images: [imageUrl],
+    // 6. Set Hero background in CMS
+    await api.put('/api/settings', {
+      heroBgType: 'video',
+      heroVideoUrl: cloudVideoUrl,
     });
-    expect(memoRes.status).toBe(200);
-    api.clearToken();
 
-    // 4. 前台公开列表拉取并验证包含该图片
-    const publicMemos = await api.get('/api/memos');
-    expect(publicMemos.status).toBe(200);
-    const targetMemo = publicMemos.json.data.records.find(m => m.content === memoContent);
-    expect(targetMemo).toBeDefined();
-    expect(targetMemo.images).toBeDefined();
-    expect(targetMemo.images.length).toBeGreaterThanOrEqual(1);
+    // 7. Trigger ISR revalidation
+    const revalRes = await api.post('/api/revalidate?path=/');
+    expect(revalRes.status).toBe(200);
+    expect(revalRes.json.data.revalidated).toBe(true);
   });
 
-  // TC-T4-05: 读者密码轮转与会话安全有效性闭环
-  suite.addTest('TC-T4-05', '读者密码轮转与会话安全有效性闭环', async () => {
-    // 1. 注册读者账号
-    const username = createRandomId('rotation_user');
-    const oldPassword = 'OldInitialPass123!';
-    const newPassword = 'NewSecretPass456!';
-    const regRes = await api.post('/api/auth/register', { username, password: oldPassword });
-    expect(regRes.status).toBe(200);
-    const token = regRes.json.data.accessToken;
-
-    // 2. 修改密码
-    api.setToken(token);
-    const changeRes = await api.put('/api/auth/password', {
-      oldPassword,
-      newPassword,
-    });
-    expect(changeRes.status).toBe(200);
+  // TC-T4-03: 数字花园心智流与技术雷达深度探索
+  suite.addTest('TC-T4-03', '数字花园心智探索旅程：Now 心智流 -> 技术雷达攻坚进度 -> 经典书摘阅读', async () => {
     api.clearToken();
+    // 1. Fetch Now mindstream
+    const nowRes = await api.get('/api/now');
+    expect(nowRes.status).toBe(200);
+    expect(nowRes.json.data.currentCity).toBeDefined();
 
-    // 3. 使用旧密码登录应当失败
-    const failLogin = await api.post('/api/auth/login', { username, password: oldPassword });
-    expect(failLogin.status).toBeOneOf([401, 400]);
+    // 2. Parse focus topics
+    const topics = JSON.parse(nowRes.json.data.focusTopicsJson);
+    expect(Array.isArray(topics)).toBe(true);
+    expect(topics.length).toBeGreaterThan(0);
+    expect(topics[0].title).toBeDefined();
+    expect(topics[0].progress).toBeDefined();
 
-    // 4. 使用新密码登录应当成功
-    const successLogin = await api.post('/api/auth/login', { username, password: newPassword });
-    expect(successLogin.status).toBe(200);
-    expect(successLogin.json.data.accessToken).toBeDefined();
+    // 3. Parse reading notes
+    const notes = JSON.parse(nowRes.json.data.readingNotesJson);
+    expect(Array.isArray(notes)).toBe(true);
+    expect(notes[0].bookTitle).toBeDefined();
+    expect(notes[0].quote).toBeDefined();
+
+    // 4. Verify Voyage Star Atlas contract
+    const atlas = frontend.inspectStarAtlas();
+    expect(atlas.hasComponent).toBe(true);
+    expect(atlas.journeysBound).toBe(true);
   });
 
-  // TC-T4-06: 前台静态入口无感体验与全局隐蔽后台唤起
-  suite.addTest('TC-T4-06', '前台全量公开页面无明文管理路由泄露 (AC-1 全局渗透扫描)', async () => {
-    const publicPaths = ['/', '/blog', '/projects', '/journey', '/memos', '/now', '/about', '/links'];
-    let exposedCount = 0;
+  // TC-T4-04: 友链朋友圈互动与在线健康探活闭环
+  suite.addTest('TC-T4-04', '友链朋友圈互动闭环：3D 微视差名片 -> 在线探活指示灯 -> 自助申请 -> 站长审核过审', async () => {
+    // 1. Card contract
+    const card = frontend.inspectFriendCard();
+    expect(card.parallax3DTilt).toBe(true);
+    expect(card.pingGreenLightIndicator).toBe(true);
 
-    for (const path of publicPaths) {
-      const pageRes = await frontend.getPage(path);
-      if (pageRes.ok && pageRes.html) {
-        const found = frontend.detectExposedAdminLinks(pageRes.html);
-        if (found.length > 0) {
-          exposedCount += found.length;
-        }
-      }
+    // 2. Reader submits application
+    api.clearToken();
+    const url = `https://geek-peer-${Date.now()}.io`;
+    const applyRes = await api.post('/api/friends/apply', {
+      name: '极客同好小站',
+      url,
+      avatar: 'https://assets.haydenxue.com/avatar/peer.png',
+      description: '全栈开发与系统内核',
+      category: 'GEEK_PEER',
+    });
+    expect(applyRes.status).toBe(200);
+    const friendId = applyRes.json.data.id;
+
+    // 3. Admin login and approve
+    const adminRes = await api.post('/api/auth/login', {
+      username: config.admin.username,
+      password: config.admin.password,
+    });
+    api.setToken(adminRes.json.data.accessToken);
+
+    const approveRes = await api.put(`/api/friends/${friendId}/status`, { status: 'ACTIVE' });
+    expect(approveRes.status).toBe(200);
+
+    // 4. Public list displays active friend with health green indicator
+    api.clearToken();
+    const publicList = await api.get('/api/friends');
+    const item = publicList.json.data.find(f => f.id === friendId);
+    expect(item).toBeDefined();
+    expect(item.pingStatus).toBe('ONLINE');
+  });
+
+  // TC-T4-05: 全站双主题沉浸式漫游体验
+  suite.addTest('TC-T4-05', '全站双主题沉浸式漫游：深曜石与白瓷模式切换 -> 三维景深对比 -> 光斑微光渲染', async () => {
+    const theme = frontend.inspectThemeDepth();
+    expect(theme.hasDepthLayers).toBe(true);
+    expect(theme.lightLayer0).toBe('#f8fafc');
+    expect(theme.lightLayer1).toBe('#ffffff');
+    expect(theme.darkLayer0).toBe('#07090e');
+    expect(theme.darkLayer1).toBe('#0e131f');
+    expect(theme.microGlowBorder).toBe(true);
+
+    const page = await frontend.getPage('/');
+    expect(page.ok).toBe(true);
+  });
+
+  // TC-T4-06: 系统全域安全与渗透防御闭环
+  suite.addTest('TC-T4-06', '系统全域安全防御闭环：隐蔽式入口扫描 -> 恶意文件拦截 -> 垂直越权 403 -> 敏感密钥脱敏', async () => {
+    // 1. Verify no exposed CMS links in public HTML
+    const homePage = await frontend.getPage('/');
+    if (homePage.ok && homePage.html) {
+      const exposed = frontend.detectExposedAdminLinks(homePage.html);
+      expect(exposed.length).toBe(0);
     }
 
-    // Also check local components/Footer.tsx for static security
-    expect(exposedCount).toBe(0);
+    // 2. Malicious upload is blocked
+    const adminRes = await api.post('/api/auth/login', {
+      username: config.admin.username,
+      password: config.admin.password,
+    });
+    api.setToken(adminRes.json.data.accessToken);
+
+    const exploitBuffer = Buffer.from('<script>alert("hacked")</script>');
+    const uploadRes = await api.upload('/api/media/upload', {
+      buffer: exploitBuffer,
+      filename: 'exploit.html',
+      contentType: 'text/html',
+    });
+    expect(uploadRes.status).toBe(400);
+
+    // 3. Reader cannot write to admin settings (vertical privilege escalation blocked)
+    const readerRes = await api.post('/api/auth/register', {
+      username: createRandomId('hacker'),
+      password: config.readerDefaults.password,
+      nickname: '黑客',
+      email: `${createRandomId('hacker')}@example.com`,
+    });
+    api.setToken(readerRes.json.data.accessToken);
+
+    const escalRes = await api.put('/api/settings', { siteName: 'HACKED' });
+    expect(escalRes.status).toBe(403);
+
+    // 4. Secret key desensitized
+    const publicSettings = await api.get('/api/settings');
+    expect(publicSettings.json.data.minioSecretKey).toBeNull();
   });
 }

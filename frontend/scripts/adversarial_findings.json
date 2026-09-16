@@ -1,0 +1,12 @@
+{
+  "passCount": 25,
+  "failCount": 0,
+  "findings": [
+    {
+      "id": "FINDING-3-RULE2-ONLY-CHECKS-COVER",
+      "title": "规则 2 目前仅检查 post.cover 是否为空，未对封面或正文图片做 404 探活",
+      "description": "当前健康体检规则 2 实现了对 `!post.cover || post.cover.trim() === \"\"` 的检测，但未实现对无效图片直链的网络 HTTP 404 探测或 Markdown 正文 `![alt](url)` 的扫描。",
+      "severity": "MEDIUM"
+    }
+  ]
+}

@@ -1,8 +1,9 @@
--- Hayden Xue Personal Blog 数据库建表脚本
--- Database: howard_blog
+-- Hayden Xue Personal Blog 数据库完整建表脚本 (MySQL 8.0+)
+-- Database: hayden_blog
+-- 全量对齐实体模型定义与分布式对象存储规范
 
-CREATE DATABASE IF NOT EXISTS `howard_blog` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `howard_blog`;
+CREATE DATABASE IF NOT EXISTS `hayden_blog` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `hayden_blog`;
 
 -- 1. 用户表 (Users)
 DROP TABLE IF EXISTS `users`;
@@ -13,8 +14,11 @@ CREATE TABLE `users` (
     `nickname` VARCHAR(50) DEFAULT NULL COMMENT '用户昵称',
     `avatar` VARCHAR(255) DEFAULT NULL COMMENT '头像URL',
     `email` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
-    `role` VARCHAR(20) NOT NULL DEFAULT 'ADMIN' COMMENT '角色: ADMIN',
+    `role` VARCHAR(20) NOT NULL DEFAULT 'ADMIN' COMMENT '角色: ADMIN / USER',
     `status` VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态: ACTIVE / BANNED',
+    `bio` TEXT DEFAULT NULL COMMENT '个人简述/Bio',
+    `github` VARCHAR(255) DEFAULT NULL COMMENT 'GitHub个人主页',
+    `website` VARCHAR(255) DEFAULT NULL COMMENT '个人站点/博客外链',
     `last_login_ip` VARCHAR(50) DEFAULT NULL COMMENT '最后登录IP',
     `last_login_time` DATETIME DEFAULT NULL COMMENT '最后登录时间',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -65,8 +69,11 @@ CREATE TABLE `posts` (
     `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
     `lang` VARCHAR(10) NOT NULL DEFAULT 'zh' COMMENT '语言版本: zh / en',
     `translation_post_id` BIGINT DEFAULT NULL COMMENT '关联双语译文文章ID',
+    `maturity` VARCHAR(20) NOT NULL DEFAULT 'BUDDING' COMMENT '成熟度: SEEDLING / BUDDING / EVERGREEN',
+    `revision_count` INT NOT NULL DEFAULT 1 COMMENT '版本修订次数',
     `seo_title` VARCHAR(255) DEFAULT NULL COMMENT 'SEO自定义标题',
     `seo_description` TEXT DEFAULT NULL COMMENT 'SEO描述',
+    `ai_radar_json` TEXT DEFAULT NULL COMMENT 'AI全息概念雷达与速读数据JSON',
     `published_at` DATETIME DEFAULT NULL COMMENT '发布时间',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -100,6 +107,7 @@ CREATE TABLE `projects` (
     `github_url` VARCHAR(255) DEFAULT NULL COMMENT 'GitHub仓库地址',
     `demo_url` VARCHAR(255) DEFAULT NULL COMMENT '在线演示地址',
     `featured` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否精选: 1-是 0-否',
+    `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
     `status` VARCHAR(20) NOT NULL DEFAULT 'PLANNING' COMMENT '状态: PLANNING / DEVELOPING / COMPLETED / ARCHIVED',
     `start_date` DATE DEFAULT NULL COMMENT '项目起始日期',
     `end_date` DATE DEFAULT NULL COMMENT '项目完成日期',
@@ -121,6 +129,7 @@ CREATE TABLE `journeys` (
     `description` TEXT DEFAULT NULL COMMENT '简短描述',
     `content` LONGTEXT DEFAULT NULL COMMENT '游记正文(Markdown)',
     `cover` VARCHAR(255) DEFAULT NULL COMMENT '封面图URL',
+    `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
     `latitude` DECIMAL(10, 7) DEFAULT NULL COMMENT '纬度',
     `longitude` DECIMAL(10, 7) DEFAULT NULL COMMENT '经度',
     `start_date` DATE DEFAULT NULL COMMENT '出发日期',
@@ -152,6 +161,13 @@ CREATE TABLE `now_records` (
     `building` TEXT DEFAULT NULL COMMENT '正在构建/开发 (Markdown)',
     `exploring` TEXT DEFAULT NULL COMMENT '正在探索 (Markdown)',
     `thinking` TEXT DEFAULT NULL COMMENT '当前思考 (Markdown)',
+    `current_city` VARCHAR(100) DEFAULT '杭州 · 滨江' COMMENT '当前旅居城市',
+    `focus_topics_json` TEXT DEFAULT NULL COMMENT '近期焦点主题JSON',
+    `reading_notes_json` TEXT DEFAULT NULL COMMENT '在读书目与笔记JSON',
+    `micro_logs_json` TEXT DEFAULT NULL COMMENT '实时微动态流JSON',
+    `music_track_json` TEXT DEFAULT NULL COMMENT '循环原声单曲JSON',
+    `mood_status` VARCHAR(100) DEFAULT '⚡ 深度心流 85%' COMMENT '此时状态标语',
+    `movies_json` TEXT DEFAULT NULL COMMENT '最近观影记录JSON',
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Now状态记录表';
@@ -187,7 +203,10 @@ CREATE TABLE `site_settings` (
     `seo_description` TEXT DEFAULT NULL COMMENT 'SEO描述',
     `hero_title` VARCHAR(255) DEFAULT NULL COMMENT '首页Hero大标题',
     `hero_slogan` VARCHAR(255) DEFAULT NULL COMMENT '首页Hero彩色渐变标语',
+    `hero_slogan_config_json` TEXT DEFAULT NULL COMMENT '首页Hero多排标语定制JSON',
     `hero_description` TEXT DEFAULT NULL COMMENT '首页Hero副标题自述',
+    `hero_bg_type` VARCHAR(20) DEFAULT 'video' COMMENT 'Hero背景类型: video / particles',
+    `hero_video_url` VARCHAR(500) DEFAULT NULL COMMENT 'Hero背景视频URL',
     `about_bio_zh` TEXT DEFAULT NULL COMMENT '关于页中文自述',
     `about_bio_en` TEXT DEFAULT NULL COMMENT '关于页英文自述',
     `about_interests` TEXT DEFAULT NULL COMMENT '兴趣爱好JSON列表',
@@ -197,6 +216,22 @@ CREATE TABLE `site_settings` (
     `footer_text` VARCHAR(255) DEFAULT NULL COMMENT '页脚版权信息',
     `icp_number` VARCHAR(100) DEFAULT NULL COMMENT 'ICP备案号',
     `bg_music_url` VARCHAR(500) DEFAULT NULL COMMENT '背景音频/白噪音URL',
+    `life_pulse_json` TEXT DEFAULT NULL COMMENT '心跳生命体征JSON',
+    `storage_type` VARCHAR(20) NOT NULL DEFAULT 'minio' COMMENT '存储策略: minio / local',
+    `minio_endpoint` VARCHAR(255) DEFAULT '' COMMENT 'MinIO终端节点',
+    `minio_bucket` VARCHAR(100) DEFAULT '' COMMENT 'MinIO存储桶名',
+    `minio_access_key` VARCHAR(255) DEFAULT '' COMMENT 'MinIO AccessKey',
+    `minio_secret_key` VARCHAR(255) DEFAULT '' COMMENT 'MinIO SecretKey',
+    `minio_public_url` VARCHAR(255) DEFAULT '' COMMENT 'MinIO公开访问前缀',
+    `reader_daily_ai_quota` INT NOT NULL DEFAULT 15 COMMENT '普通读者每日AI对话额度',
+    `comment_moderation_enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '评论审核总开关: 1开启 0关闭',
+    `admin_comment_exempt` TINYINT NOT NULL DEFAULT 1 COMMENT '管理员评论免审: 1免审 0同审',
+    `ai_enabled` TINYINT NOT NULL DEFAULT 1 COMMENT 'AI助手总开关: 1开启 0关闭',
+    `ai_base_url` VARCHAR(255) DEFAULT 'https://api.deepseek.com' COMMENT 'AI基地址',
+    `ai_model` VARCHAR(100) DEFAULT 'deepseek-flash' COMMENT 'AI主模型标识',
+    `ai_api_key` VARCHAR(255) DEFAULT NULL COMMENT 'AI主授权密钥',
+    `ai_system_prompt` TEXT DEFAULT NULL COMMENT 'AI系统人设提示词',
+    `ai_providers_json` TEXT DEFAULT NULL COMMENT 'AI多服务商集群配置列表JSON',
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='网站全局配置表';
@@ -207,6 +242,10 @@ CREATE TABLE `memos` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `content` TEXT NOT NULL COMMENT '随记正文',
     `images` TEXT DEFAULT NULL COMMENT '配图JSON数组',
+    `location` VARCHAR(255) DEFAULT NULL COMMENT '地理足迹地点',
+    `mood` VARCHAR(50) DEFAULT NULL COMMENT '随记心情',
+    `weather` VARCHAR(50) DEFAULT NULL COMMENT '随记天气',
+    `tags` VARCHAR(500) DEFAULT NULL COMMENT '标签列表(逗号分隔)',
     `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
     `is_pinned` TINYINT NOT NULL DEFAULT 0 COMMENT '是否置顶(1是0否)',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
@@ -226,6 +265,9 @@ CREATE TABLE `friends` (
     `category` VARCHAR(50) NOT NULL DEFAULT 'Blog' COMMENT '分类 (Blog, Tech, Tools)',
     `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序',
     `status` VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态 (ACTIVE, HIDDEN)',
+    `ping_status` VARCHAR(20) NOT NULL DEFAULT 'ONLINE' COMMENT '探针状态: ONLINE / TIMEOUT / ERROR',
+    `last_ping_time` DATETIME DEFAULT NULL COMMENT '最近一次探针探测时间',
+    `response_time_ms` BIGINT DEFAULT 45 COMMENT '探针响应耗时(毫秒)',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`)
@@ -240,6 +282,7 @@ CREATE TABLE `comments` (
     `user_id` BIGINT NOT NULL COMMENT '发表用户ID',
     `parent_id` BIGINT DEFAULT NULL COMMENT '父级评论ID(回复楼中楼)',
     `content` TEXT NOT NULL COMMENT '评论正文',
+    `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
     `status` VARCHAR(20) NOT NULL DEFAULT 'APPROVED' COMMENT '状态 (APPROVED, PENDING, SPAM)',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发表时间',
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -259,6 +302,8 @@ CREATE TABLE `media` (
     `size` BIGINT DEFAULT 0 COMMENT '文件大小(字节)',
     `width` INT DEFAULT NULL COMMENT '图片宽度',
     `height` INT DEFAULT NULL COMMENT '图片高度',
+    `storage_type` VARCHAR(20) NOT NULL DEFAULT 'minio' COMMENT '存储类型: minio / local',
+    `file_hash` VARCHAR(64) DEFAULT NULL COMMENT 'SHA-256文件哈希去重值',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
     PRIMARY KEY (`id`),
     KEY `idx_created_at` (`created_at`)
@@ -304,10 +349,30 @@ DROP TABLE IF EXISTS `user_likes`;
 CREATE TABLE `user_likes` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `user_id` BIGINT NOT NULL COMMENT '点赞用户ID',
-    `target_type` VARCHAR(20) NOT NULL COMMENT '点赞目标(MEMO, POST)',
+    `target_type` VARCHAR(20) NOT NULL COMMENT '点赞目标(POST, MEMO, COMMENT, JOURNEY, PROJECT)',
     `target_id` BIGINT NOT NULL COMMENT '目标对象ID',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_target` (`user_id`, `target_type`, `target_id`),
     KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户点赞记录表';
+
+-- 19. 站内通知与互动提醒表 (Notifications)
+DROP TABLE IF EXISTS `notifications`;
+CREATE TABLE `notifications` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT NOT NULL COMMENT '接收通知用户ID',
+    `sender_id` BIGINT DEFAULT NULL COMMENT '触发通知用户ID',
+    `sender_name` VARCHAR(100) DEFAULT NULL COMMENT '触发者昵称/姓名',
+    `sender_avatar` VARCHAR(255) DEFAULT NULL COMMENT '触发者头像',
+    `type` VARCHAR(50) NOT NULL COMMENT '通知类型: LIKE, REPLY, AUDIT_PASS, SYSTEM',
+    `target_type` VARCHAR(20) DEFAULT NULL COMMENT '目标实体类型 (POST, JOURNEY, MEMO, COMMENT)',
+    `target_id` BIGINT DEFAULT NULL COMMENT '目标实体ID',
+    `target_title` VARCHAR(255) DEFAULT NULL COMMENT '目标标题或摘要',
+    `content` TEXT DEFAULT NULL COMMENT '通知详情内容',
+    `is_read` TINYINT NOT NULL DEFAULT 0 COMMENT '是否已读: 0未读 1已读',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_notifications_user_id` (`user_id`),
+    KEY `idx_notifications_read` (`user_id`, `is_read`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='站内通知表';

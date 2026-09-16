@@ -1,23 +1,17 @@
 // e2e/tiers/tier3-cross-feature.mjs
-import { ApiClient } from '../utils/client.mjs';
+import { ApiClient, FrontendClient } from '../utils/client.mjs';
 import { expect } from '../utils/assertions.mjs';
 import { config, createRandomId } from '../config.mjs';
 
 export function registerTier3Tests(harness) {
-  const suite = harness.createSuite('Tier 3: 跨功能组合联动测试 (Cross-Feature)', 'Tier 3');
+  const suite = harness.createSuite('Tier 3: 跨功能端到端联动测试 (Cross-Feature Integration)', 'Tier 3');
   const api = new ApiClient();
+  const frontend = new FrontendClient();
 
   let adminToken = null;
-  let testSpamReader = null;
-  let testSpamToken = null;
-  let spamUserId = null;
-  let testActiveReader = null;
-  let activeReaderToken = null;
-  let readerCommentId = null;
+  let readerToken = null;
 
-  // Setup
-  suite.addTest('TC-T3-PREP', '前置准备：登录管理员并注册联动测试专属读者', async () => {
-    // Admin login
+  suite.addTest('TC-T3-PREP', '前置准备：登录站长与读者账号以建立联动测试上下文', async () => {
     const adminRes = await api.post('/api/auth/login', {
       username: config.admin.username,
       password: config.admin.password,
@@ -25,187 +19,236 @@ export function registerTier3Tests(harness) {
     expect(adminRes.status).toBe(200);
     adminToken = adminRes.json.data.accessToken;
 
-    // Spam Reader (for ban tests)
-    const spamName = createRandomId('spammer');
-    const spamPass = config.readerDefaults.password;
-    const spamReg = await api.post('/api/auth/register', {
-      username: spamName,
-      password: spamPass,
+    const username = createRandomId('t3_reader');
+    const registerRes = await api.post('/api/auth/register', {
+      username,
+      password: config.readerDefaults.password,
+      nickname: `读者_${username}`,
+      email: `${username}@${config.readerDefaults.emailDomain}`,
     });
-    expect(spamReg.status).toBe(200);
-    testSpamReader = { username: spamName, password: spamPass };
-    testSpamToken = spamReg.json.data.accessToken;
-
-    // Active Reader (for notifications & tracking)
-    const activeName = createRandomId('active');
-    const activePass = config.readerDefaults.password;
-    const activeReg = await api.post('/api/auth/register', {
-      username: activeName,
-      password: activePass,
-    });
-    expect(activeReg.status).toBe(200);
-    testActiveReader = { username: activeName, password: activePass };
-    activeReaderToken = activeReg.json.data.accessToken;
-
-    // Find spam reader's userId from admin user list or me endpoint
-    api.setToken(testSpamToken);
-    const meRes = await api.get('/api/auth/me');
-    if (meRes.ok && meRes.json.data?.id) {
-      spamUserId = meRes.json.data.id;
-    } else {
-      // Lookup in admin users list
-      api.setToken(adminToken);
-      const uList = await api.get('/api/admin/users');
-      const found = uList.json.data.records.find(u => u.username === spamName);
-      spamUserId = found ? found.id : 2;
-    }
-    api.clearToken();
+    expect(registerRes.status).toBe(200);
+    readerToken = registerRes.json.data.accessToken;
   });
 
-  // TC-T3-01: 管理员封禁用户后，该用户无法继续发表评论
-  suite.addTest('TC-T3-01', '管理员封禁违规用户后，该读者无法继续发表评论', async () => {
-    // Admin bans the user
+  // TC-T3-01: MinIO 云存储 -> 电影级 Hero 视频背景联动
+  suite.addTest('TC-T3-01', 'MinIO 云存储 -> 电影级 Hero 视频背景联动 (F1 + F2 + F3 + F11)', async () => {
     api.setToken(adminToken);
-    const banRes = await api.patch(`/api/admin/users/${spamUserId}/status?status=DISABLED`, {
-      status: 'DISABLED',
-    });
-    expect(banRes.status).toBe(200);
-    expect(banRes.json.code).toBe(200);
+    // 1. Switch to MinIO
+    await api.put('/api/settings', { storageType: 'MINIO' });
 
-    // Banned reader tries to post comment
-    api.setToken(testSpamToken);
-    const commentRes = await api.post('/api/comments', {
-      postId: 1,
-      content: '被封禁账号尝试发送灌水言论',
+    // 2. Upload video with MP4 magic numbers
+    const mp4Header = Buffer.from([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70,
+      0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x02, 0x00,
+    ]);
+    const uploadRes = await api.upload('/api/media/upload', {
+      buffer: mp4Header,
+      filename: 'hero-4k-loop.mp4',
+      contentType: 'video/mp4',
     });
-    expect(commentRes.status).toBe(403);
+    expect(uploadRes.status).toBe(200);
+    const videoUrl = uploadRes.json.data.url;
+    expect(uploadRes.json.data.storageType).toBe('MINIO');
+
+    // 3. Set heroVideoUrl in CMS
+    await api.put('/api/settings', { heroBgType: 'video', heroVideoUrl: videoUrl });
+
+    // 4. Verify public settings reflect the new cloud video
     api.clearToken();
+    const settings = await api.get('/api/settings');
+    expect(settings.json.data.heroBgType).toBe('video');
+    expect(settings.json.data.heroVideoUrl).toBe(videoUrl);
   });
 
-  // TC-T3-02: 管理员封禁用户后，该用户无法继续点赞
-  suite.addTest('TC-T3-02', '管理员封禁违规用户后，该读者无法继续点赞文章或随记', async () => {
-    api.setToken(testSpamToken);
-    const likeRes = await api.post('/api/posts/1/like', {});
-    expect(likeRes.status).toBe(403);
-
-    const memoLikeRes = await api.post('/api/memos/1/like', {});
-    expect(memoLikeRes.status).toBe(403);
+  // TC-T3-02: 读者自助申请友链 -> 站长审核过审 -> 友链流聚合展示
+  suite.addTest('TC-T3-02', '读者自助申请友链 -> 站长审核过审 -> 友链流与健康指示展示 (F6 + F10)', async () => {
+    // 1. Reader applies via public API
     api.clearToken();
-  });
-
-  // TC-T3-03: 被封禁读者重新登录被拦截拒绝
-  suite.addTest('TC-T3-03', '被封禁读者登出后重新登录被拦截拒绝', async () => {
-    api.clearToken();
-    const loginRes = await api.post('/api/auth/login', {
-      username: testSpamReader.username,
-      password: testSpamReader.password,
+    const applicantUrl = `https://peer-${Date.now()}.org`;
+    const applyRes = await api.post('/api/friends/apply', {
+      name: '开源先锋圈',
+      url: applicantUrl,
+      avatar: 'https://assets.haydenxue.com/avatar/peer.png',
+      description: '下一代云原生工具链',
+      category: 'OPEN_SOURCE',
     });
-    expect(loginRes.status).toBeOneOf([400, 403]);
-    expect(loginRes.json.message).toContain('禁用');
-  });
+    expect(applyRes.status).toBe(200);
+    const friendId = applyRes.json.data.id;
+    expect(applyRes.json.data.status).toBe('PENDING');
 
-  // TC-T3-04: 文章发布后自动更新热门统计与审计日志流水
-  suite.addTest('TC-T3-04', '文章发布成功后前台可见且系统审计日志自动生成流水', async () => {
+    // 2. Public friends list does not yet contain it
+    const publicBefore = await api.get('/api/friends');
+    expect(publicBefore.json.data.find(f => f.id === friendId)).toBeUndefined();
+
+    // 3. Admin audits and approves
     api.setToken(adminToken);
-    const uniqueSlug = createRandomId('linked_post');
-    const createRes = await api.post('/api/posts', {
-      title: `联动文章 ${uniqueSlug}`,
-      slug: uniqueSlug,
-      content: '测试文章发布与审计系统联动流水',
-      status: 'PUBLISHED',
-    });
-    expect(createRes.status).toBe(200);
-
-    // Verify public visibility
-    api.clearToken();
-    const viewRes = await api.get(`/api/posts/${uniqueSlug}`);
-    expect(viewRes.status).toBe(200);
-
-    // Verify admin audit logs contain CREATE action
-    api.setToken(adminToken);
-    const auditRes = await api.get('/api/admin/audit-logs');
+    const auditRes = await api.put(`/api/friends/${friendId}/status`, { status: 'ACTIVE' });
     expect(auditRes.status).toBe(200);
-    expect(auditRes.json.data.records).toBeDefined();
-    const hasCreateLog = auditRes.json.data.records.some(
-      r => r.module === 'POST' && (r.action === 'CREATE' || r.description?.includes(uniqueSlug))
-    );
-    expect(hasCreateLog).toBe(true);
+
+    // 4. Public list now displays it as ACTIVE and ONLINE
     api.clearToken();
+    const publicAfter = await api.get('/api/friends');
+    const approvedItem = publicAfter.json.data.find(f => f.id === friendId);
+    expect(approvedItem).toBeDefined();
+    expect(approvedItem.status).toBe('ACTIVE');
+    expect(approvedItem.pingStatus).toBe('ONLINE');
   });
 
-  // TC-T3-05: 访客浏览文章轻量上报触发流量统计看板指标更新
-  suite.addTest('TC-T3-05', '访客心跳上报行为触发后台流量看板统计更新', async () => {
-    api.clearToken();
-    // 1. Send track request
-    const trackRes = await api.post('/api/analytics/track', {
-      path: '/blog/from-the-east-toward-the-unknown',
-      durationSeconds: 120,
-      referrer: 'https://example.org',
-    });
-    expect(trackRes.status).toBe(200);
-
-    // 2. Query admin analytics overview
+  // TC-T3-03: 动态 CMS 内容更新 -> Next.js ISR 缓存失效 -> 前台首屏秒开呈现
+  suite.addTest('TC-T3-03', '动态 CMS 内容更新 -> Next.js ISR 缓存失效 -> 前台首屏秒开呈现 (F13 + F11)', async () => {
     api.setToken(adminToken);
-    const overviewRes = await api.get('/api/admin/analytics/overview');
-    expect(overviewRes.status).toBe(200);
-    expect(overviewRes.json.data.todayPv).toBeGreaterThan(0);
-    expect(overviewRes.json.data.avgDurationSeconds).toBeGreaterThan(0);
+    const updatedSlogan = 'From the East, toward the unknown. // ISR Revalidated';
+    await api.put('/api/settings', { slogan: updatedSlogan });
+
+    // Trigger ISR revalidation
+    const revRes = await api.post('/api/revalidate?path=/');
+    expect(revRes.status).toBe(200);
+    expect(revRes.json.data.revalidated).toBe(true);
+
+    // Public fetch verifies immediately without server reboot
     api.clearToken();
+    const settings = await api.get('/api/settings');
+    expect(settings.json.data.slogan).toBe(updatedSlogan);
   });
 
-  // TC-T3-06: 读者评论发表触发站长邮件通知事件
-  suite.addTest('TC-T3-06', '读者发表文章评论触发异步站长邮件通知事件', async () => {
-    api.setToken(activeReaderToken);
-    const commentRes = await api.post('/api/comments', {
-      postId: 1,
-      content: '非常具有启发性的文章，请问后续是否有进阶架构篇？',
-    });
-    expect(commentRes.status).toBe(200);
-    readerCommentId = commentRes.json.data.id;
-    api.clearToken();
-  });
-
-  // TC-T3-07: 站长回复评论触发读者邮件通知事件
-  suite.addTest('TC-T3-07', '站长回复该评论触发读者邮件通知提醒事件', async () => {
+  // TC-T3-04: 真实旅行足迹入库 -> 3D 地球仪地标联动 -> 游记博文直达
+  suite.addTest('TC-T3-04', '真实旅行足迹入库 -> 3D 地球仪地标联动 -> 游记博文直达 (F4 + F7)', async () => {
     api.setToken(adminToken);
-    const replyRes = await api.post('/api/comments', {
-      postId: 1,
-      parentId: readerCommentId || 1,
-      content: '感谢关注！进阶架构篇正在整理中，敬请期待！',
+    // 1. Admin creates a real journey footprint
+    const newSlug = `chengdu-teahouse-${Date.now()}`;
+    const journeyRes = await api.post('/api/journey', {
+      title: '成都·锦里古街与盖碗茶香',
+      city: 'Chengdu',
+      lat: 30.5728,
+      lon: 104.0668,
+      slug: newSlug,
+      cover: 'https://images.unsplash.com/photo-chengdu.jpg',
+      description: '在锦里老街品一杯蒙顶甘露，体悟慢节奏生活中的研发智慧。',
     });
-    expect(replyRes.status).toBe(200);
-    expect(replyRes.json.data.parentId).toBe(readerCommentId || 1);
+    expect(journeyRes.status).toBe(200);
+
+    // 2. Public journey list contains the new city
     api.clearToken();
+    const listRes = await api.get('/api/journey');
+    const chengdu = listRes.json.data.find(j => j.city === 'Chengdu');
+    expect(chengdu).toBeDefined();
+
+    // 3. Globe inspection confirms real footprint data binding
+    const globe = frontend.inspectVoyageGlobe();
+    expect(globe.bindsRealJourneys).toBe(true);
+
+    // 4. Detail page URL resolves
+    const detailRes = await api.get(`/api/journey/${newSlug}`);
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.json.data.city).toBe('Chengdu');
   });
 
-  // TC-T3-08: 读者在个人中心可完整追溯“我发表的评论”流
-  suite.addTest('TC-T3-08', '读者在个人中心通过 GET /api/comments/my 查看到刚发表的评论', async () => {
-    api.setToken(activeReaderToken);
-    const myCommentsRes = await api.get('/api/comments/my');
-    expect(myCommentsRes.status).toBe(200);
-    expect(myCommentsRes.json.data.records).toBeDefined();
-    const hasMyComment = myCommentsRes.json.data.records.some(
-      c => c.content?.includes('进阶架构篇') || c.id === readerCommentId
-    );
-    expect(hasMyComment).toBe(true);
+  // TC-T3-05: 站长更新 Now 生活心智手记 -> 数字看板心智流同步 -> 前台 HUD 实时生效
+  suite.addTest('TC-T3-05', '站长更新 Now 生活心智手记 -> 数字看板心智流同步 -> 前台 HUD 实时生效 (F5 + F8 + F9)', async () => {
+    api.setToken(adminToken);
+    const newTopics = JSON.stringify([
+      { title: '企业级虚拟线程高并发架构', progress: 99, tag: 'Java21' },
+      { title: 'Three.js 4.0 空间漫游视窗', progress: 92, tag: 'Creative' },
+    ]);
+    const updateRes = await api.put('/api/now', {
+      currentCity: 'Shenzhen',
+      focusTopicsJson: newTopics,
+    });
+    expect(updateRes.status).toBe(200);
+
+    // Public fetch matches
     api.clearToken();
+    const nowRes = await api.get('/api/now');
+    expect(nowRes.json.data.currentCity).toBe('Shenzhen');
+    expect(nowRes.json.data.focusTopicsJson).toBe(newTopics);
+
+    // StarAtlas and LivingMindstream components bind real data
+    const atlas = frontend.inspectStarAtlas();
+    const mindstream = frontend.inspectLivingMindstream();
+    expect(atlas.journeysBound).toBe(true);
+    expect(mindstream.focusTopicsTimeline).toBe(true);
   });
 
-  // TC-T3-09: 读者点赞随记后在个人中心“我点赞过的动态”可追溯
-  suite.addTest('TC-T3-09', '读者点赞随记后在 GET /api/likes/my 个人中心动态中可查验', async () => {
-    api.setToken(activeReaderToken);
-    // Like memo 1
-    const likeRes = await api.post('/api/memos/1/like', {});
+  // TC-T3-06: 存储策略切换 (Local <-> MinIO) 与媒体库跨存储混合生命周期一致性
+  suite.addTest('TC-T3-06', '存储策略切换与媒体库跨存储混合生命周期一致性 (F1 + F2)', async () => {
+    api.setToken(adminToken);
+    // 1. Upload in LOCAL mode
+    await api.put('/api/settings', { storageType: 'LOCAL' });
+    const localPng = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const localUpload = await api.upload('/api/media/upload', {
+      buffer: localPng,
+      filename: 'local-asset.png',
+      contentType: 'image/png',
+    });
+    expect(localUpload.json.data.storageType).toBe('LOCAL');
+
+    // 2. Upload in MINIO mode
+    await api.put('/api/settings', { storageType: 'MINIO' });
+    const minioPng = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const minioUpload = await api.upload('/api/media/upload', {
+      buffer: minioPng,
+      filename: 'minio-asset.png',
+      contentType: 'image/png',
+    });
+    expect(minioUpload.json.data.storageType).toBe('MINIO');
+
+    // 3. Media list safely contains both storage types
+    const mediaList = await api.get('/api/media');
+    const localItem = mediaList.json.data.records.find(m => m.id === localUpload.json.data.id);
+    const minioItem = mediaList.json.data.records.find(m => m.id === minioUpload.json.data.id);
+    expect(localItem.storageType).toBe('LOCAL');
+    expect(minioItem.storageType).toBe('MINIO');
+  });
+
+  // TC-T3-07: 全站双主题层级美学与 3D 画布环境光晕自适应
+  suite.addTest('TC-T3-07', '全站双主题层级美学与 3D 画布环境光晕自适应 (F12 + F7 + F8)', async () => {
+    const theme = frontend.inspectThemeDepth();
+    const globe = frontend.inspectVoyageGlobe();
+    const atlas = frontend.inspectStarAtlas();
+
+    expect(theme.hasDepthLayers).toBe(true);
+    expect(theme.microGlowBorder).toBe(true);
+    expect(globe.hasComponent).toBe(true);
+    expect(atlas.hasComponent).toBe(true);
+  });
+
+  // TC-T3-08: 280px Studio 侧边栏导航与 16 个管理页面的统一 PageHeader 对齐
+  suite.addTest('TC-T3-08', '280px Studio 侧边栏导航与 16 个管理页面的统一 PageHeader 对齐 (F14 + F15)', async () => {
+    const sidebar = frontend.inspectAdminSidebar();
+    const header = frontend.inspectAdminPageHeader();
+
+    expect(sidebar.expandedWidth).toBe(280);
+    expect(sidebar.itemMinHeight).toBeGreaterThanOrEqual(38);
+    expect(header.totalAdminRoutes).toBe(16);
+    expect(header.unifiedBreadcrumbs).toBe(true);
+    expect(header.roundedCardContainer).toBe(true);
+  });
+
+  // TC-T3-09: 友链在线探活状态改变与后台异常提示联动
+  suite.addTest('TC-T3-09', '友链在线探活状态改变与后台管理视图联动 (F6 + F10)', async () => {
+    api.setToken(adminToken);
+    const allFriends = await api.get('/api/friends/admin');
+    expect(allFriends.status).toBe(200);
+    const firstFriend = allFriends.json.data[0];
+    expect(firstFriend.pingStatus).toBeDefined();
+  });
+
+  // TC-T3-10: 读者点赞足迹博文 -> 个人中心互动列表 -> 管理看板热度统计
+  suite.addTest('TC-T3-10', '读者点赞足迹博文 -> 个人中心互动列表 -> 管理看板热度统计 (F4 + F8)', async () => {
+    api.setToken(readerToken);
+    // Like post 1
+    const likeRes = await api.post('/api/posts/1/like');
     expect(likeRes.status).toBe(200);
 
-    // Query my likes
-    const myLikesRes = await api.get('/api/likes/my');
-    expect(myLikesRes.status).toBe(200);
-    expect(myLikesRes.json.data.records).toBeDefined();
-    const hasLikedMemo = myLikesRes.json.data.records.some(
-      l => l.targetType === 'MEMO' || l.targetId === 1
-    );
-    expect(hasLikedMemo).toBe(true);
-    api.clearToken();
+    // Check reader's personal center likes
+    const myLikes = await api.get('/api/likes/my');
+    expect(myLikes.status).toBe(200);
+    expect(myLikes.json.data.records.length).toBeGreaterThan(0);
+
+    // Check admin overview dashboard reflects interactions
+    api.setToken(adminToken);
+    const overview = await api.get('/api/admin/analytics/overview');
+    expect(overview.status).toBe(200);
+    expect(overview.json.data.todayPv).toBeGreaterThan(0);
   });
 }

@@ -1,4 +1,4 @@
--- H2 Schema for Howard Personal Blog
+-- H2 Schema for Hayden Xue Personal Blog
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(100),
     role VARCHAR(20) DEFAULT 'ADMIN',
     status VARCHAR(20) DEFAULT 'ACTIVE',
+    bio TEXT,
+    github VARCHAR(255),
+    website VARCHAR(255),
     last_login_ip VARCHAR(50),
     last_login_time TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -50,6 +53,7 @@ CREATE TABLE IF NOT EXISTS posts (
     revision_count INT DEFAULT 1,
     seo_title VARCHAR(255),
     seo_description TEXT,
+    ai_radar_json TEXT,
     published_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -74,6 +78,7 @@ CREATE TABLE IF NOT EXISTS projects (
     github_url VARCHAR(255),
     demo_url VARCHAR(255),
     featured INT DEFAULT 0,
+    like_count INT DEFAULT 0,
     status VARCHAR(20) DEFAULT 'PLANNING',
     start_date DATE,
     end_date DATE,
@@ -90,6 +95,7 @@ CREATE TABLE IF NOT EXISTS journeys (
     description TEXT,
     content LONGTEXT,
     cover VARCHAR(255),
+    like_count INT DEFAULT 0,
     latitude DECIMAL(10, 7),
     longitude DECIMAL(10, 7),
     start_date DATE,
@@ -113,6 +119,13 @@ CREATE TABLE IF NOT EXISTS now_records (
     building TEXT,
     exploring TEXT,
     thinking TEXT,
+    focus_topics_json TEXT,
+    reading_notes_json TEXT,
+    current_city VARCHAR(100),
+    micro_logs_json TEXT,
+    music_track_json TEXT,
+    mood_status VARCHAR(100),
+    movies_json TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -157,7 +170,21 @@ CREATE TABLE IF NOT EXISTS site_settings (
     ai_model VARCHAR(100) DEFAULT 'gpt-4o-mini',
     ai_api_key VARCHAR(255),
     ai_system_prompt TEXT,
+    ai_providers_json TEXT,
     life_pulse_json TEXT,
+    hero_bg_type VARCHAR(20) DEFAULT 'video',
+    hero_video_url VARCHAR(500),
+    hero_slogan_config_json TEXT,
+    page_visuals_json TEXT,
+    storage_type VARCHAR(20) DEFAULT 'local',
+    minio_endpoint VARCHAR(255),
+    minio_bucket VARCHAR(100),
+    minio_access_key VARCHAR(255),
+    minio_secret_key VARCHAR(255),
+    minio_public_url VARCHAR(255),
+    reader_daily_ai_quota INT DEFAULT 15,
+    comment_moderation_enabled INT DEFAULT 1,
+    admin_comment_exempt INT DEFAULT 1,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -165,6 +192,10 @@ CREATE TABLE IF NOT EXISTS memos (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     content TEXT NOT NULL,
     images TEXT,
+    location VARCHAR(255),
+    mood VARCHAR(50),
+    weather VARCHAR(50),
+    tags VARCHAR(500),
     like_count INT DEFAULT 0,
     is_pinned INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -177,9 +208,12 @@ CREATE TABLE IF NOT EXISTS friends (
     url VARCHAR(255) NOT NULL,
     avatar VARCHAR(255),
     description VARCHAR(255),
-    category VARCHAR(50) DEFAULT 'Blog',
+    category VARCHAR(50) DEFAULT '独立博客',
     sort_order INT DEFAULT 0,
     status VARCHAR(20) DEFAULT 'ACTIVE',
+    ping_status VARCHAR(20) DEFAULT 'UNKNOWN',
+    last_ping_time TIMESTAMP,
+    response_time_ms BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -191,6 +225,7 @@ CREATE TABLE IF NOT EXISTS comments (
     user_id BIGINT NOT NULL,
     parent_id BIGINT,
     content TEXT NOT NULL,
+    like_count INT DEFAULT 0,
     status VARCHAR(20) DEFAULT 'APPROVED',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -205,8 +240,11 @@ CREATE TABLE IF NOT EXISTS media (
     size BIGINT DEFAULT 0,
     width INT,
     height INT,
+    storage_type VARCHAR(20) DEFAULT 'local',
+    file_hash VARCHAR(64) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_media_file_hash ON media(file_hash);
 
 CREATE TABLE IF NOT EXISTS audit_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -240,3 +278,23 @@ CREATE TABLE IF NOT EXISTS user_likes (
     target_id BIGINT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_user_target ON user_likes(user_id, target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_user_likes_user_id ON user_likes(user_id);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    sender_id BIGINT,
+    sender_name VARCHAR(100),
+    sender_avatar VARCHAR(255),
+    type VARCHAR(50) NOT NULL,
+    target_type VARCHAR(20),
+    target_id BIGINT,
+    target_title VARCHAR(255),
+    content TEXT,
+    is_read INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);

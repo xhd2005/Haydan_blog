@@ -1,5 +1,5 @@
 -- Hayden Xue Personal Blog 初始数据种子脚本
-USE `howard_blog`;
+USE `hayden_blog`;
 
 -- 1. 初始管理员用户 (账号: admin / 密码: admin123)
 -- BCrypt: $2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2

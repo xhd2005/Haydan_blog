@@ -4,14 +4,17 @@ import { notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import { MarkdownViewer } from '@/components/MarkdownViewer';
 import { SafeImage } from '@/components/SafeImage';
+import { DEFAULT_AVATAR } from '@/lib/media-defaults';
 import { ReadingProgress } from '@/components/ReadingProgress';
 import { TableOfContents } from '@/components/TableOfContents';
-import { LikeButton } from '@/components/LikeButton';
 import { CommentSection } from '@/components/CommentSection';
-import { ArrowLeft, Calendar, Clock, Eye, Tag as TagIcon, Heart } from 'lucide-react';
+import { Tag as TagIcon, Sparkles } from 'lucide-react';
 import { getServerTranslation } from '@/lib/i18n-server';
 import { ArticleBilingualInteractive } from '@/components/ArticleBilingualInteractive';
 import { ArticleInteractiveWrapper } from '@/components/ArticleInteractiveWrapper';
+import { ResonanceNexus } from '@/components/garden/ResonanceNexus';
+import { ArticleFullBleedHero } from '@/components/blog/ArticleFullBleedHero';
+import { AiConceptRadarDeck } from '@/components/blog/AiConceptRadarDeck';
 
 interface ArticlePageProps {
   params: {
@@ -82,6 +85,17 @@ export async function generateMetadata({ params }: ArticlePageProps) {
 
 export const revalidate = 60;
 
+export async function generateStaticParams() {
+  try {
+    const res = await api.getPosts({ page: 1, pageSize: 50 });
+    return (res.records || []).map((post) => ({
+      slug: post.slug,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { locale, t } = getServerTranslation();
   let post;
@@ -91,218 +105,194 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     notFound();
   }
 
+  const [journeys, projects] = await Promise.all([
+    api.getLatestJourneys(2).catch(() => []),
+    api.getFeaturedProjects().catch(() => []),
+  ]);
+
   const formattedDate = post.publishedAt
     ? new Date(post.publishedAt).toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-CN', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
       })
-    : t('common.recently', locale === 'en' ? 'Recently' : '近期');
+    : t('common.recently');
 
   return (
     <>
       {/* 顶部细腻阅读进度条 */}
       <ReadingProgress />
 
-      <div className="max-w-5xl mx-auto space-y-10">
-        {/* Back to Blog */}
-        <div>
-          <Link
-            href="/blog"
-            className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-1" />
-            <span>{t('detail.back_blog', locale === 'en' ? 'Back to all posts' : '返回文章列表')}</span>
-          </Link>
-        </div>
+      <div className="w-full">
+        {/* 1. 通栏全景电影首屏 (大标题浮于大图黄金分割点，与下方正文同轴对齐) */}
+        <ArticleFullBleedHero
+          post={post}
+          locale={locale}
+          formattedDate={formattedDate}
+          translations={{
+            backBlog: t('detail.back_blog'),
+            readingTime: t('detail.reading_time'),
+            views: t('detail.views'),
+          }}
+        />
 
-        {/* Article Header */}
-        <header className="space-y-6 max-w-4xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {post.category && (
-              <Link
-                href={`/blog?category=${post.category.slug}`}
-                className="px-2.5 py-1 rounded-full bg-secondary text-foreground font-medium hover:bg-secondary/80 transition-colors"
-              >
-                {post.category.name}
-              </Link>
-            )}
-            <span className="flex items-center gap-1 font-mono">
-              <Calendar className="w-3.5 h-3.5" />
-              {formattedDate}
-            </span>
-            <span>•</span>
-            <span className="flex items-center gap-1 font-mono">
-              <Clock className="w-3.5 h-3.5" />
-              {post.readingTime} {t('detail.reading_time', locale === 'en' ? 'min read' : '分钟阅读')}
-            </span>
-            <span>•</span>
-            <span className="flex items-center gap-1 font-mono">
-              <Eye className="w-3.5 h-3.5" />
-              {post.viewCount} {t('detail.views', locale === 'en' ? 'views' : '次浏览')}
-            </span>
-          </div>
+        {/* 2. 白瓷画卷微重叠层叠 (Overlapping Sheet)
+             浅色微磨砂雪白瓷面，深色曜石黑磨砂，-mt-10~-mt-16 优雅重叠压在封面大图底沿，
+             彻底消除生硬死板的渐变发灰感，重现现代艺术杂志的立体景深 */}
+        <div className="relative z-30 -mt-10 sm:-mt-14 lg:-mt-16">
+          <div className="w-full bg-[#fbfbfd]/95 dark:bg-[#090a0f]/95 backdrop-blur-2xl rounded-t-[2.5rem] sm:rounded-t-[3rem] border-t border-slate-200/80 dark:border-white/[0.08] shadow-[0_-16px_40px_-12px_rgba(0,0,0,0.06)] dark:shadow-[0_-20px_50px_-12px_rgba(0,0,0,0.7)] transition-colors duration-300">
+            <div className="max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-10 pt-10 sm:pt-14 pb-20">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 xl:gap-14 items-start">
+            {/* 核心正文主干 (与上方大标题严格共享 980px 宽阔主阅读道) */}
+            <main className="lg:col-span-8 xl:col-span-9 space-y-8 min-w-0 max-w-[980px]">
+              {/* 双语版本快速切换与 Friendly Fallback 友好提示条 */}
+              <ArticleBilingualInteractive post={post} />
 
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-[1.2]">
-            {post.title}
-          </h1>
+              {/* AI 全息概念雷达与 30 秒核心速读舱 */}
+              <AiConceptRadarDeck post={post} />
 
-          {/* 双语对齐直达与 Friendly Fallback 友好提示条 */}
-          <ArticleBilingualInteractive post={post} />
+              {/* 正文交互容器（支持字号动态缩放、伴读工具栏与划词显微镜） */}
+              <ArticleInteractiveWrapper post={post}>
+                <article className="prose-custom max-w-none leading-relaxed text-foreground/90">
+                  <MarkdownViewer content={post.content || ''} />
+                </article>
+              </ArticleInteractiveWrapper>
 
-          {post.excerpt && (
-            <p className="text-base sm:text-lg text-muted-foreground leading-relaxed italic border-l-2 border-emerald-500 pl-4">
-              {post.excerpt}
-            </p>
-          )}
-
-          {/* Cover Image */}
-          {post.cover && (
-            <SafeImage
-              src={post.cover}
-              alt={post.title}
-              aspectRatio="21/9"
-              containerClassName="w-full rounded-2xl border border-border shadow-md"
-            />
-          )}
-        </header>
-
-        {/* Content & TOC Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-12 pt-4 border-t border-border">
-          {/* Left / Center: Article Content */}
-          <div className="lg:col-span-3 space-y-10 max-w-[70ch]">
-            <ArticleInteractiveWrapper post={post}>
-              <article className="prose-custom">
-                <MarkdownViewer content={post.content || ''} />
-              </article>
-            </ArticleInteractiveWrapper>
-
-            {/* Like and Reactions */}
-            <div className="pt-8 border-t border-border flex items-center justify-between">
-              <div className="space-y-1">
-                <span className="text-xs font-semibold text-foreground">
-                  {t('detail.like_prompt', locale === 'en' ? 'Enjoyed this article?' : '喜欢这篇手记？')}
-                </span>
-                <p className="text-xs text-muted-foreground">
-                  {t('detail.like_sub', locale === 'en' ? 'Like without sign-in to support ongoing writing.' : '免登录点赞，支持创作者持续输出。')}
-                </p>
-              </div>
-              <LikeButton id={post.id} initialLikes={post.likeCount} type="post" />
-            </div>
-
-            {/* Tags */}
-            {post.tags && post.tags.length > 0 && (
-              <div className="pt-4 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground flex items-center gap-1 mr-2">
-                  <TagIcon className="w-3.5 h-3.5" /> {t('detail.tags', locale === 'en' ? 'Tags' : '标签')}:
-                </span>
-                {post.tags.map((tag) => (
-                  <Link
-                    key={tag.id}
-                    href={`/blog?tag=${tag.slug}`}
-                    className="px-3 py-1 rounded-md bg-secondary text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            {/* Author Card */}
-            <div className="p-6 rounded-2xl bg-card border border-border flex items-center gap-5">
-              <SafeImage
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop&crop=faces"
-                alt="Hayden Xue"
-                aspectRatio="1/1"
-                containerClassName="w-14 h-14 rounded-full overflow-hidden shrink-0 border border-border"
-              />
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-base text-foreground">Hayden Xue</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                    {t('detail.author', locale === 'en' ? 'Author' : '作者')}
+              {/* 标签列表 */}
+              {post.tags && post.tags.length > 0 && (
+                <div className="pt-6 border-t border-border flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 mr-2 font-mono">
+                    <TagIcon className="w-3.5 h-3.5" /> {t('detail.tags')}:
                   </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t('detail.author_bio', locale === 'en' ? 'From the East, toward the unknown. Exploring tech, AI, and the world.' : 'From the East, toward the unknown. 记录技术、AI、建筑摄影与长期成长。')}
-                </p>
-              </div>
-            </div>
-
-            {/* Prev / Next Post Navigation */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
-              {post.prevPost ? (
-                <Link
-                  href={`/blog/${post.prevPost.slug}`}
-                  className="p-4 rounded-xl border border-border hover:bg-secondary/40 transition-colors space-y-1 group"
-                >
-                  <span className="text-xs text-muted-foreground">
-                    &larr; {t('detail.prev', locale === 'en' ? 'Previous' : '上一篇')}
-                  </span>
-                  <h4 className="text-sm font-semibold text-foreground group-hover:text-emerald-500 line-clamp-1 transition-colors">
-                    {post.prevPost.title}
-                  </h4>
-                </Link>
-              ) : (
-                <div />
-              )}
-
-              {post.nextPost && (
-                <Link
-                  href={`/blog/${post.nextPost.slug}`}
-                  className="p-4 rounded-xl border border-border hover:bg-secondary/40 transition-colors space-y-1 text-right group sm:col-start-2"
-                >
-                  <span className="text-xs text-muted-foreground">
-                    {t('detail.next', locale === 'en' ? 'Next' : '下一篇')} &rarr;
-                  </span>
-                  <h4 className="text-sm font-semibold text-foreground group-hover:text-emerald-500 line-clamp-1 transition-colors">
-                    {post.nextPost.title}
-                  </h4>
-                </Link>
-              )}
-            </div>
-
-            {/* Related Posts */}
-            {post.relatedPosts && post.relatedPosts.length > 0 && (
-              <div className="space-y-4 pt-4 border-t border-border">
-                <h3 className="text-lg font-bold text-foreground">
-                  {t('detail.related', locale === 'en' ? 'Related Articles' : '相关推荐')}
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {post.relatedPosts.map((rel) => (
+                  {post.tags.map((tag) => (
                     <Link
-                      key={rel.id}
-                      href={`/blog/${rel.slug}`}
-                      className="p-4 rounded-xl border border-border hover:border-emerald-500/40 bg-card transition-all group space-y-2"
+                      key={tag.id}
+                      href={`/blog?tag=${tag.slug}`}
+                      className="px-3 py-1 rounded-full bg-secondary/80 hover:bg-secondary text-xs font-mono text-muted-foreground hover:text-foreground transition-colors border border-border/50"
                     >
-                      {rel.cover && (
-                        <SafeImage
-                          src={rel.cover}
-                          alt={rel.title}
-                          aspectRatio="16/9"
-                          containerClassName="w-full rounded-lg overflow-hidden"
-                          className="group-hover:scale-105 transition-transform duration-300"
-                        />
-                      )}
-                      <h4 className="text-sm font-semibold text-foreground group-hover:text-emerald-500 transition-colors line-clamp-2">
-                        {rel.title}
-                      </h4>
+                      #{tag.name}
                     </Link>
                   ))}
                 </div>
+              )}
+
+              {/* 上一篇 / 下一篇导航 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
+                {post.prevPost ? (
+                  <Link
+                    href={`/blog/${post.prevPost.slug}`}
+                    className="p-4 rounded-2xl border border-border hover:border-emerald-500/40 bg-secondary/20 hover:bg-secondary/50 transition-all space-y-1 group"
+                  >
+                    <span className="text-xs text-muted-foreground font-mono">
+                      &larr; {t('detail.prev')}
+                    </span>
+                    <h4 className="text-sm font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 line-clamp-1 transition-colors">
+                      {post.prevPost.title}
+                    </h4>
+                  </Link>
+                ) : (
+                  <div />
+                )}
+
+                {post.nextPost && (
+                  <Link
+                    href={`/blog/${post.nextPost.slug}`}
+                    className="p-4 rounded-2xl border border-border hover:border-emerald-500/40 bg-secondary/20 hover:bg-secondary/50 transition-all space-y-1 text-right group sm:col-start-2"
+                  >
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {t('detail.next')} &rarr;
+                    </span>
+                    <h4 className="text-sm font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 line-clamp-1 transition-colors">
+                      {post.nextPost.title}
+                    </h4>
+                  </Link>
+                )}
               </div>
-            )}
 
-            {/* Comments Section */}
-            <CommentSection targetType="POST" targetId={post.id} />
+              {/* 评论交互区 (与正文主轴像素级对齐) */}
+              <CommentSection targetType="POST" targetId={post.id} />
+            </main>
+
+            {/* 右翼伴读侧栏：导轨目录 + 数字花园思维回响 + 作者档案 + 相关手记 */}
+            <aside className="hidden lg:block lg:col-span-4 xl:col-span-3 space-y-6 sticky top-28">
+              {/* 1. 极简导轨目录 */}
+              <TableOfContents />
+
+              {/* 2. 数字花园思维回响 (关联行旅与工程造物) */}
+              <ResonanceNexus
+                currentType="POST"
+                journeys={journeys}
+                projects={projects}
+                variant="sidebar"
+              />
+
+              {/* 3. 作者档案名片 */}
+              <div className="p-5 rounded-2xl backdrop-blur-xl bg-white/80 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-white/[0.08] shadow-sm space-y-3">
+                <div className="flex items-center gap-3.5">
+                  <SafeImage
+                    src={DEFAULT_AVATAR}
+                    alt="Hayden Xue"
+                    aspectRatio="1/1"
+                    containerClassName="w-12 h-12 rounded-full overflow-hidden shrink-0 border border-border shadow-inner"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm text-foreground">Hayden Xue</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
+                        {t('detail.author')}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">
+                      Architect · Thinker
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {t('detail.author_bio')}
+                </p>
+              </div>
+
+              {/* 4. 相关手记精选推荐 */}
+              {post.relatedPosts && post.relatedPosts.length > 0 && (
+                <div className="p-5 rounded-2xl backdrop-blur-xl bg-white/80 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-white/[0.08] shadow-sm space-y-3.5">
+                  <div className="flex items-center gap-2 text-xs font-mono font-bold text-foreground uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>{t('detail.related')}</span>
+                  </div>
+                  <div className="space-y-3">
+                    {post.relatedPosts.map((rel) => (
+                      <Link
+                        key={rel.id}
+                        href={`/blog/${rel.slug}`}
+                        className="group flex items-center gap-3 p-2 rounded-xl hover:bg-secondary/60 transition-all border border-transparent hover:border-border/50"
+                      >
+                        {rel.cover && (
+                          <div className="w-16 h-12 shrink-0 rounded-lg overflow-hidden">
+                            <SafeImage
+                              src={rel.cover}
+                              alt={rel.title}
+                              aspectRatio="16/9"
+                              containerClassName="w-full h-full"
+                              className="group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 line-clamp-2 leading-snug transition-colors">
+                            {rel.title}
+                          </h4>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </aside>
           </div>
-
-          {/* Right Sidebar: Table of Contents (Desktop Sticky) */}
-          <aside className="hidden lg:block lg:col-span-1">
-            <TableOfContents />
-          </aside>
         </div>
       </div>
-    </>
+    </div>
+  </div>
+</>
   );
 }

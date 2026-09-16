@@ -39,14 +39,20 @@ VALUES (
     'Personal blog and digital space of Hayden Xue. Thoughts on software development, AI, projects, and life.'
 );
 
-MERGE INTO now_records (id, learning, building, exploring, thinking)
+MERGE INTO now_records (id, learning, building, exploring, thinking, focus_topics_json, reading_notes_json, current_city, micro_logs_json, music_track_json, mood_status)
 KEY(id)
 VALUES (
     1,
-    '- 深入学习 Java 21 虚拟线程 (Virtual Threads) 高并发实践\n- 研读智能体协调框架与 Multi-Agent 架构设计\n- 探索现代 Web 端 Shiki 代码渲染与暗色排版细节',
-    '- 打造全新的个人博客与数字花园系统 (Hayden Xue Personal Blog V1.0)\n- 搭建前后端分离的现代化个人数字资产中枢',
+    '- 深入实践 Java 25 虚拟线程 (Virtual Threads) 高并发与现代特性\n- 研读智能体协调框架与 Multi-Agent 架构设计\n- 探索现代 Web 端 Shiki 代码渲染与暗色排版细节',
+    '- 打造全新的个人博客与数字花园系统 (Hayden Xue Personal Blog V2.0)\n- 搭建前后端分离的现代化个人数字资产中枢',
     '- 城市徒步与建筑摄影 (Street & Architecture Photography)\n- 下一代 Generative UI 与响应式流式交互范式',
-    '- 个人数字花园如何成为长效的心智外脑，而非转瞬即逝的碎片化社交信息？\n- 在大模型时代，软件工程师的核心壁垒正在向何处迁移？'
+    '- 个人数字花园如何成为长效的心智外脑，而非转瞬即逝的碎片化社交信息？\n- 在大模型时代，软件工程师的核心壁垒正在向何处迁移？',
+    '[{"title":"Project Loom 虚拟线程并发实战","progress":95,"badge":"核心演进","tags":["Java 25","Concurrency"]},{"title":"Next.js 14 现代响应式空间美学","progress":95,"badge":"前端重构","tags":["Next.js","Three.js"]},{"title":"商汤日日新 / DeepSeek AI 智能体体系","progress":90,"badge":"智能伴读","tags":["Agent","LLM"]}]',
+    '[{"title":"Designing Data-Intensive Applications","author":"Martin Kleppmann","cover":"https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&fit=crop","quote":"可靠性、可扩展性与可维护性是支撑数字系统的三大基石。","note":"精读第5章分布式复制与一致性模型"},{"title":"Building Microservices (2nd Edition)","author":"Sam Newman","cover":"https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=400&fit=crop","quote":"服务解耦与自治性决定了分布式架构的演进上限。","note":"研读微服务拆分与演进模式"}]',
+    '杭州 · 滨江',
+    '[{"date":"2026-09-08","content":"完成 MinIO 生产云存储与 Java 25 虚拟线程架构升级，博客数字花园性能大幅跃升。"},{"date":"2026-09-06","content":"重构 Now 页面，引入生活心智流与经典书摘。"}]',
+    '{"title":"Cornfield Chase","artist":"Hans Zimmer · Interstellar OST","albumCover":"https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop","audioUrl":"","platformUrl":"https://music.163.com","note":"星际穿越原声，在时空视界与引力波中构建数字花园。"}',
+    '⚡ 深度心流 85%'
 );
 
 MERGE INTO timeline (id, `year`, title, description, sort_order) KEY(id) VALUES
@@ -146,34 +152,104 @@ MERGE INTO journeys (id, title, slug, country, city, description, content, cover
 KEY(id)
 VALUES (
     1,
-    '京都与东京：在古刹与赛博迷航中的春日纪行',
-    'kyoto-tokyo-spring-journey',
+    '京都：枯山水与红叶古刹的静谧沉思',
+    'kyoto-zen-gardens',
     '日本',
-    '京都 / 东京',
-    '穿行于鸭川的清风与涩谷的霓虹之间，体会东方传统美学与现代都市文明的碰撞。',
-    '# 京都与东京：春日纪行\n\n旅行是打破日常惯性最直接的手段。\n\n## 京都的静谧\n在清水寺的清晨，薄雾还未散去。千年的木结构建筑在晨光中苏醒，远处的梵钟悠扬回荡。\n\n## 东京的律动\n从新宿到秋叶原，城市的脉搏在轨道交通与高耸楼宇之间急促跃动。',
+    '京都',
+    '漫步于鸭川河畔与岚山竹林，在龙安寺的方丈庭院中感受枯山水禅意美学。',
+    '# 京都：枯山水与红叶古刹\n\n京都的清晨总是笼罩在薄雾中。龙安寺的十五块岩石在白砂波纹中若隐若现，无论从哪个角度看，总有一块石头隐匿于视野之外——这正是东方美学中关于“不完美与留白”的哲思。\n\n## 鸭川三角洲\n傍晚坐在鸭川的跳水石上，水流从脚下掠过，对岸传来街头琴师悠扬的吉他声。\n\n## 岚山竹林径\n风过竹海，清脆的沙沙声洗涤了都市的喧嚣。',
     'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1200&h=630&fit=crop',
     35.0116,
     135.7681,
     '2025-04-05',
-    '2025-04-15'
+    '2025-04-10'
 ),
 (
     2,
-    '重庆：魔幻立体山城的空间折叠',
+    '东京：赛博都市脉搏与秋叶原灵感漫游',
+    'tokyo-cyber-pulse',
+    '日本',
+    '东京',
+    '穿梭在涩谷全向十字路口的霓虹光海与银座的建筑几何之间，感触全球顶级都会的脉动。',
+    '# 东京：赛博都市脉搏\n\n从涉谷的天空俯瞰整个关东平原，密集的都市建筑群在夜色中化为流淌的光之电路。\n\n## 涩谷十字路口\n每当绿灯亮起，成千上万的人流汇聚又分散，犹如计算机内部高速运转的总线数据。\n\n## 银座建筑考察\n各具特色的建筑立面不仅是商业空间，更是空间美学与工程工艺的集大成者。',
+    'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=1200&h=630&fit=crop',
+    35.6762,
+    139.6503,
+    '2025-04-11',
+    '2025-04-15'
+),
+(
+    3,
+    '重庆：立体魔幻山城与长江岸边的赛博折叠',
     'chongqing-mountain-city',
     '中国',
     '重庆',
-    '穿梭在八维立体的轻轨与穿江索道之中，探寻长江岸边的市井烟火。',
-    '# 重庆：山城漫步\n\n你永远不知道你脚下的一楼，在另一个方向是否其实是二十二楼。\n\n夜幕降临时，洪崖洞的灯火倒映在嘉陵江面上，宛如千与千寻的现实画卷。',
+    '穿梭在八维立体的轻轨与穿江索道之中，探寻长江岸边的市井烟火与多维空间折叠。',
+    '# 重庆：立体山城空间折叠\n\n你永远不知道你脚下的一楼，在另一个方向是否其实是二十二楼。\n\n## 穿楼而过的轻轨\n李子坝站的列车呼啸穿入居民楼，工程奇迹与日常生活在此自然共生。\n\n## 洪崖洞与两江夜景\n夜幕降临时，洪崖洞金碧辉煌的吊脚楼倒映在嘉陵江面上，宛如千与千寻的现实画卷。',
     'https://images.unsplash.com/photo-1548013146-72479768bada?w=1200&h=630&fit=crop',
     29.5630,
     106.5516,
     '2024-10-01',
     '2024-10-07'
+),
+(
+    4,
+    '北京：紫禁城古建与中轴线历史回响',
+    'beijing-imperial-axis',
+    '中国',
+    '北京',
+    '漫步于故宫朱红城墙与景山之巅，俯瞰北京中轴线严整壮丽的古典秩序美学。',
+    '# 北京：中轴线的历史回响\n\n登上景山万春亭，正南方的紫禁城三大殿在阳光下金碧辉煌，严整对称的中轴线贯通古今。\n\n## 胡同与树影\n南锣鼓巷与五道营的深处，青砖灰瓦与老槐树的浓荫下，藏着老北京最地道的市井从容。\n\n## 798 艺术区\n包豪斯风格的锯齿形厂房蜕变为当代艺术先锋空间，机械文明与当代创意在这里交融。',
+    'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?w=1200&h=630&fit=crop',
+    39.9042,
+    116.4074,
+    '2024-11-15',
+    '2024-11-20'
+),
+(
+    5,
+    '上海：外滩百年天际线与梧桐树下的海派风尚',
+    'shanghai-bund-horizon',
+    '中国',
+    '上海',
+    '沿黄浦江畔眺望陆家嘴三件套与万国建筑博览群，感受古典与现代极致同框的海派魅力。',
+    '# 上海：海派文明与现代天际线\n\n一江之隔，左手是沉淀了百年的万国建筑博览群，右手是刺破云端的陆家嘴现代超高层建筑。\n\n## 武康路的梧桐深处\n漫步法租界街区，西班牙式公寓与法式花园洋房掩映在梧桐绿荫中，街角咖啡馆飘荡着手冲的香气。\n\n## 西岸艺术中心的江风\n原油罐与码头起重机改造成的滨江美术馆群，夕阳下江轮鸣笛而过，充满现代工业美感。',
+    'https://images.unsplash.com/photo-1538428494232-9c0d8a3ab403?w=1200&h=630&fit=crop',
+    31.2304,
+    121.4737,
+    '2025-01-02',
+    '2025-01-06'
+),
+(
+    6,
+    '杭州：西湖水墨烟雨与未来科技城的心智共振',
+    'hangzhou-westlake-cyber',
+    '中国',
+    '杭州',
+    '从苏堤春晓的淡妆浓抹到未来科技城的极客生态，在数字经济之都体验古今交响。',
+    '# 杭州：水墨与算力的共振\n\n杭州是一座独特的城市，既有白居易苏东坡笔下千古吟咏的江南诗意，又是中国数字经济与云计算的高地。\n\n## 西湖长桥与茅家埠\n清晨泛舟茅家埠，水鸟掠过芦苇荡，远处的雷峰夕照在云雾中若隐若现。\n\n## 滨江与未来科技城\n高新园区内彻夜明亮的窗棂，见证了无数工程师与创业者探索未知技术边界的热忱。',
+    'https://images.unsplash.com/photo-1599571234909-29ed5d1321d6?w=1200&h=630&fit=crop',
+    30.2741,
+    120.1551,
+    '2025-05-18',
+    '2025-05-22'
+),
+(
+    7,
+    '深圳：大湾区创新引擎与南海之滨的硬核科技浪潮',
+    'shenzhen-tech-bay',
+    '中国',
+    '深圳',
+    '在深圳湾大桥的晚霞与华强北的创客世界中，感受中国最具速度与活力的创新精神。',
+    '# 深圳：南海之滨的创新热土\n\n作为改革开放的前沿与科技创新的先锋，深圳展现了惊人的生机与自我迭代能力。\n\n## 深圳湾科技生态园\n漫步在深圳湾滨海长廊，远眺春笋大厦与香港元朗群山，夕阳洒满金色海面。\n\n## 华强北创客精神\n全球最大的电子元器件集散地，任何奇思妙想都能在几天内变成硬件原型。',
+    'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&h=630&fit=crop',
+    22.5431,
+    114.0579,
+    '2025-08-10',
+    '2025-08-15'
 );
 
-MERGE INTO site_settings (id, site_name, site_description, slogan, bio, logo, avatar, email, github_url, twitter_url, instagram_url, seo_title, seo_description, hero_title, hero_slogan, hero_description, about_bio_zh, about_bio_en, about_interests, announcement_enabled, announcement_text, announcement_link, footer_text, icp_number, bg_music_url)
+MERGE INTO site_settings (id, site_name, site_description, slogan, bio, logo, avatar, email, github_url, twitter_url, instagram_url, seo_title, seo_description, hero_title, hero_slogan, hero_description, about_bio_zh, about_bio_en, about_interests, announcement_enabled, announcement_text, announcement_link, footer_text, icp_number, bg_music_url, hero_bg_type, hero_video_url, storage_type, minio_endpoint, minio_bucket, minio_access_key, minio_secret_key, minio_public_url)
 KEY(id)
 VALUES (
     1,
@@ -200,7 +276,15 @@ VALUES (
     '/memos',
     '© 2026 Hayden Xue. Built with Java 21 & Next.js 14.',
     '京ICP备20260905号-1',
-    'https://cdn.freesound.org/previews/518/518175_6142149-lq.mp3'
+    'https://cdn.freesound.org/previews/518/518175_6142149-lq.mp3',
+    'video',
+    'https://assets.mixkit.co/videos/preview/mixkit-cyber-city-night-traffic-aerial-view-34440-large.mp4',
+    'local',
+    'http://localhost:9000',
+    'hayden-blog',
+    'minioadmin',
+    'minioadmin',
+    ''
 );
 
 MERGE INTO memos (id, content, images, like_count, is_pinned)
@@ -220,35 +304,57 @@ VALUES (
     0
 );
 
-MERGE INTO friends (id, name, url, avatar, description, category, sort_order, status)
+MERGE INTO friends (id, name, url, avatar, description, category, sort_order, status, ping_status, response_time_ms)
 KEY(id)
 VALUES (
     1,
     'Hayden Lab',
     'https://haydenxue.com',
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop',
-    '探索前沿软件工程与智能体实验',
-    'Tech',
+    '探索前沿软件工程、Java 21 与智能体实验',
+    '独立博客',
     1,
-    'ACTIVE'
+    'ACTIVE',
+    'ONLINE',
+    38
 ),
 (
     2,
     'Vercel Design',
     'https://vercel.com/design',
     'https://assets.vercel.com/image/upload/front/favicon/vercel/180x180.png',
-    '极简现代 Web 设计美学规范与实践',
-    'Design',
+    '极简现代 Web 设计美学规范与空间交互',
+    '极客同好',
     2,
-    'ACTIVE'
+    'ACTIVE',
+    'ONLINE',
+    82
 ),
 (
     3,
     'GitHub Blog',
     'https://github.blog',
     'https://github.githubassets.com/favicons/favicon.png',
-    '全球顶级开源生态与工程思考',
-    'Blog',
+    '全球顶级开源生态与现代软件工程思考',
+    '开源先锋',
     3,
-    'ACTIVE'
+    'ACTIVE',
+    'ONLINE',
+    116
 );
+
+MERGE INTO now_records (id, learning, building, exploring, thinking, focus_topics_json, reading_notes_json, current_city, micro_logs_json, updated_at)
+KEY(id)
+VALUES (
+    1,
+    '正在深入探索 Java 21 虚拟线程 (Project Loom) 与响应式高吞吐架构实战...',
+    '正在研发 Hayden Xue 个人博客与数字花园系统 V2.0，整合 Three.js 探索地球仪与 MinIO 原生存储...',
+    '在西湖水墨烟雨与未来科技城极客生态之间，探寻数字交互与人文艺术的共鸣边界...',
+    '持续思考个人知识库如何长效沉淀，以及智能体辅助思考时代的工程师心智模型迁移...',
+    '[{"title":"Project Loom 虚拟线程并发实战","progress":90,"badge":"核心演进","tags":["Java 21","Concurrency"]},{"title":"Next.js 14 现代响应式空间美学","progress":95,"badge":"前端重构","tags":["Next.js","Three.js"]},{"title":"商汤日日新 / DeepSeek AI 智能体体系","progress":80,"badge":"智能伴读","tags":["Agent","LLM"]}]',
+    '[{"title":"Designing Data-Intensive Applications","author":"Martin Kleppmann","cover":"https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&fit=crop","quote":"可靠性、可扩展性与可维护性是支撑数字系统的三大基石。","note":"精读第5章分布式复制与一致性模型"},{"title":"Building Microservices (2nd Edition)","author":"Sam Newman","cover":"https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=400&fit=crop","quote":"服务解耦与自治性决定了分布式架构的演进上限。","note":"研读微服务拆分与演进模式"}]',
+    '杭州 · 滨江',
+    '[{"date":"2026-09-08","content":"完成 MinIO 云存储与虚拟线程架构升级，博客数字花园性能大幅跃升。"},{"date":"2026-09-06","content":"重构 Now 页面，引入生活心智流与经典书摘。"}]',
+    CURRENT_TIMESTAMP
+);
+

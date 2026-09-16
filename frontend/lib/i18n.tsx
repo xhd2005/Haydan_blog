@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Locale, DICTIONARY, translate } from './i18n-shared';
+import { readSavedLocale } from './storage-keys';
 
 export type { Locale };
 export { DICTIONARY, translate };
@@ -32,16 +33,18 @@ export function I18nProvider({
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
   useEffect(() => {
-    // 客户端挂载后检测本地存储与 Cookie 是否一致
-    const saved = (localStorage.getItem('NEXT_LOCALE') || localStorage.getItem('hayden_locale') || localStorage.getItem('howard_locale')) as Locale;
+    // 客户端挂载后检测本地存储与 Cookie 是否一致（历史键自动一次性迁移）
+    const saved = (localStorage.getItem('NEXT_LOCALE') || readSavedLocale()) as Locale;
     if ((saved === 'zh' || saved === 'en') && saved !== locale) {
       setLocaleState(saved);
+      document.documentElement.lang = saved === 'en' ? 'en' : 'zh-CN';
       document.cookie = `NEXT_LOCALE=${saved}; path=/; max-age=31536000; SameSite=Lax`;
     }
   }, []);
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
+    document.documentElement.lang = newLocale === 'en' ? 'en' : 'zh-CN';
     localStorage.setItem('hayden_locale', newLocale);
     localStorage.setItem('NEXT_LOCALE', newLocale);
     document.cookie = `NEXT_LOCALE=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;

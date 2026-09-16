@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { UserManageVO } from '@/lib/types';
 import { toast, confirmModal } from '@/lib/toast';
 import { SafeImage } from '@/components/SafeImage';
+import { DEFAULT_AVATAR } from '@/lib/media-defaults';
 import { 
   Users, 
   Search, 
@@ -18,6 +19,7 @@ import {
   Filter,
   Loader2
 } from 'lucide-react';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserManageVO[]>([]);
@@ -88,20 +90,17 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl text-xs">
-      {/* Header */}
-      <div className="border-b border-border pb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-blue-500" />
-            <span>用户与读者管理 (User Management)</span>
-          </h1>
-          <p className="text-muted-foreground mt-0.5">
-            管理全站已注册读者、站长账号、活跃评论指标与账号安全状态控制。
-          </p>
-        </div>
-        <div className="text-muted-foreground font-mono">全站注册用户：{total} 人</div>
-      </div>
+    <div className="w-full space-y-5 text-xs">
+      <AdminPageHeader
+        title="用户与读者管理"
+        description="管理全站已注册读者、活跃度指标与账号安全状态控制"
+        icon={Users}
+        badgeText={`全站注册 ${total} 人`}
+        breadcrumbs={[
+          { label: 'Studio 控制台', href: '/admin/dashboard' },
+          { label: '用户管理' }
+        ]}
+      />
 
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-card border border-border shadow-sm">
@@ -181,7 +180,7 @@ export default function AdminUsersPage() {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
                           <SafeImage
-                            src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&h=80&fit=crop'}
+                            src={u.avatar || DEFAULT_AVATAR}
                             alt={u.nickname || u.username}
                             aspectRatio="1/1"
                             containerClassName="w-9 h-9 rounded-full overflow-hidden border border-border shrink-0"

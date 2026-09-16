@@ -49,6 +49,11 @@ export function expect(actual) {
         throw new AssertionError(`Expected null, but got ${safeStringify(actual)}`, actual, null);
       }
     },
+    toBeUndefined() {
+      if (actual !== undefined) {
+        throw new AssertionError(`Expected undefined, but got ${safeStringify(actual)}`, actual, undefined);
+      }
+    },
     toBeTruthy() {
       if (!actual) {
         throw new AssertionError(`Expected truthy value, but got ${safeStringify(actual)}`, actual, true);

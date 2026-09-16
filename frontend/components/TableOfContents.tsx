@@ -10,6 +10,14 @@ interface TocItem {
   level: number;
 }
 
+/**
+ * 极简无边框导轨文章目录 (Floating Track Table of Contents)
+ * 
+ * 类似 Linear / Stripe 文档的极简轻量美学：
+ * - 去卡片化与零视觉干扰；
+ * - 左侧极细流动垂直导轨线条；
+ * - 随滚动平滑滑动高亮游标，自动对齐当前章节。
+ */
 export function TableOfContents() {
   const { t } = useI18n();
   const [headings, setHeadings] = useState<TocItem[]>([]);
@@ -44,7 +52,7 @@ export function TableOfContents() {
           }
         });
       },
-      { rootMargin: '0% 0% -60% 0%' }
+      { rootMargin: '0% 0% -65% 0%' }
     );
 
     elements.forEach((el) => observer.observe(el));
@@ -54,24 +62,28 @@ export function TableOfContents() {
   if (headings.length === 0) return null;
 
   return (
-    <nav className="space-y-3 p-4 rounded-2xl bg-card/60 border border-border/80 backdrop-blur-sm sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
-      <div className="flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/60">
+    <nav 
+      aria-label={t('detail.toc')}
+      className="space-y-4 pl-2 sticky top-28 max-h-[calc(100vh-10rem)] overflow-y-auto scrollbar-none select-none"
+    >
+      <div className="flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-wider text-muted-foreground pb-1">
         <AlignLeft className="w-3.5 h-3.5 text-emerald-500" />
         <span>{t('detail.toc')}</span>
       </div>
-      <ul className="space-y-1.5 text-xs">
-        {headings.map((item) => (
-          <li
-            key={item.id}
-            style={{ paddingLeft: item.level === 3 ? '1rem' : '0' }}
-          >
+
+      {/* 极简无边框导轨列表 */}
+      <div className="relative border-l border-border/70 dark:border-white/[0.08] space-y-1">
+        {headings.map((item) => {
+          const isActive = activeId === item.id;
+          return (
             <a
+              key={item.id}
               href={`#${item.id}`}
               onClick={(e) => {
                 e.preventDefault();
                 const target = document.getElementById(item.id);
                 if (target) {
-                  const offset = 80;
+                  const offset = 90;
                   const bodyRect = document.body.getBoundingClientRect().top;
                   const elementRect = target.getBoundingClientRect().top;
                   const elementPosition = elementRect - bodyRect;
@@ -80,17 +92,28 @@ export function TableOfContents() {
                   setActiveId(item.id);
                 }
               }}
-              className={`block py-1 px-2 rounded-lg transition-colors leading-relaxed line-clamp-1 ${
-                activeId === item.id
-                  ? 'text-emerald-500 bg-emerald-500/10 font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+              style={{
+                paddingLeft: item.level === 3 ? '1.5rem' : '1rem',
+              }}
+              className={`group relative block py-1 text-xs transition-all duration-200 line-clamp-1 leading-relaxed ${
+                isActive
+                  ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {item.text}
+              {/* 导轨上平滑激活的高亮指示块 */}
+              {isActive && (
+                <span 
+                  className="absolute -left-[1px] top-1.5 bottom-1.5 w-[2px] bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]" 
+                />
+              )}
+              <span className="transition-transform duration-200 group-hover:translate-x-0.5 inline-block">
+                {item.text}
+              </span>
             </a>
-          </li>
-        ))}
-      </ul>
+          );
+        })}
+      </div>
     </nav>
   );
 }

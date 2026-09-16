@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ImageOff, Sparkles } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { DEFAULT_COVER } from '@/lib/media-defaults';
 
 export interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
@@ -18,13 +19,19 @@ export function SafeImage({
   aspectRatio = 'auto',
   className = '',
   containerClassName = '',
-  fallbackSrc = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+  fallbackSrc = DEFAULT_COVER,
   ...props
 }: SafeImageProps) {
   const { t } = useI18n();
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [imgSrc, setImgSrc] = useState(src);
+
+  useEffect(() => {
+    setImgSrc(src);
+    setLoaded(false);
+    setError(false);
+  }, [src]);
 
   const getAspectClass = () => {
     switch (aspectRatio) {

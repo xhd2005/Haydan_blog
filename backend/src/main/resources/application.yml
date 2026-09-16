@@ -5,21 +5,32 @@ server:
 
 spring:
   application:
-    name: howard-blog-backend
+    name: hayden-blog-backend
   profiles:
     active: dev
+  threads:
+    virtual:
+      enabled: true
   servlet:
     multipart:
-      max-file-size: 15MB
-      max-request-size: 30MB
+      max-file-size: 200MB
+      max-request-size: 250MB
 
 app:
   jwt:
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration-ms: 7200000 # 2 hours (7200s)
   upload:
     dir: ./uploads/
     url-prefix: /uploads/
+  storage:
+    type: minio # local or minio
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+    bucket: ${MINIO_BUCKET:hayden-blog}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    public-url: ${MINIO_PUBLIC_URL:http://127.0.0.1:9000}
 
 mybatis-plus:
   configuration:
@@ -30,16 +41,25 @@ mybatis-plus:
       id-type: auto
       logic-delete-field: deleted
 ---
-# 开发环境配置 (默认尝试连接本地 MySQL，支持通过环境变量灵活覆盖)
+# 开发环境配置 (支持通过环境变量 DB_HOST, DB_PASS, REDIS_HOST 覆盖，默认连接项目开发环境云数据库与 Redis)
 spring:
   config:
     activate:
       on-profile: dev
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:howard_blog}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    url: jdbc:mysql://${DB_HOST:49.233.166.212}:${DB_PORT:3306}/${DB_NAME:hayden_blog}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
     username: ${DB_USER:root}
-    password: ${DB_PASS:1234}
+    password: ${DB_PASS:mysql_xass6G}
+  # Redis 缓存层（站点设置/聚合数据，连接失败时由 CacheErrorHandler 优雅降级）
+  data:
+    redis:
+      host: ${REDIS_HOST:49.233.166.212}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redis_caKGch}
+      timeout: 3000
+  cache:
+    type: redis
 ---
 # H2 纯内存测试/独立运行 Profile (无须本地 MySQL 即开即用)
 spring:
@@ -48,7 +68,7 @@ spring:
       on-profile: h2
   datasource:
     driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:howard_blog;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=YEAR
+    url: jdbc:h2:mem:hayden_blog;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=YEAR
     username: sa
     password: ''
   h2:
@@ -60,3 +80,6 @@ spring:
       mode: always
       schema-locations: classpath:schema-h2.sql
       data-locations: classpath:data-h2.sql
+  # 测试环境禁用缓存，保证 mvn test 无外部依赖
+  cache:
+    type: none

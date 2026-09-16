@@ -19,6 +19,7 @@ import {
   Loader2,
   Calendar
 } from 'lucide-react';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 export default function AdminAnalyticsPage() {
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
@@ -72,29 +73,29 @@ export default function AdminAnalyticsPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl text-xs">
-      {/* Header */}
-      <div className="border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <BarChart3 className="w-6 h-6 text-emerald-500" />
-            <span>数据分析与流量看板 (Analytics & Insights)</span>
-          </h1>
-          <p className="text-muted-foreground mt-0.5">
-            全站真实 PV/UV 流量监控、7 天访客趋势、热门文章排行与外部引流渠道画像。
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => loadData(true)}
-          disabled={refreshing}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-foreground font-medium transition-colors disabled:opacity-50"
-        >
-          <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          <span>刷新数据</span>
-        </button>
-      </div>
+    <div className="w-full space-y-6 text-xs">
+      {/* 统一规范头部 */}
+      <AdminPageHeader
+        title="数据分析与流量看板 (Analytics & Insights)"
+        description="全站真实 PV/UV 流量监控、7 天访客趋势、热门文章排行与外部引流渠道画像。"
+        icon={BarChart3}
+        breadcrumbs={[
+          { label: 'Studio', href: '/admin/dashboard' },
+          { label: '概览仪表盘', href: '/admin/dashboard' },
+          { label: '访问分析' },
+        ]}
+        actions={
+          <button
+            type="button"
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-foreground font-medium transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>刷新数据</span>
+          </button>
+        }
+      />
 
       {/* Overview Stat Cards */}
       {overview && (
@@ -274,33 +275,48 @@ export default function AdminAnalyticsPage() {
 
         {/* Traffic Sources Breakdown */}
         <div className="p-6 rounded-3xl bg-card border border-border shadow-sm space-y-4">
-          <div className="flex items-center gap-2 font-bold text-sm text-foreground">
-            <Globe2 className="w-4 h-4 text-blue-500" />
-            <span>流量来源画像 (Traffic Sources)</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+              <Globe2 className="w-4 h-4 text-blue-500" />
+              <span>流量来源画像 (Traffic Sources)</span>
+            </div>
+            <span className="text-[10px] font-mono text-muted-foreground uppercase">
+              100% 真实引流数据
+            </span>
           </div>
 
           <div className="space-y-3.5 pt-1">
-            {sources.map((item, idx) => {
-              const percent = Math.round((item.count / totalSourceVisits) * 100);
-              return (
-                <div key={idx} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-medium text-foreground">{item.source}</span>
-                    <span className="font-mono text-muted-foreground">
-                      {item.count} 次 ({percent}%)
-                    </span>
+            {sources.length === 0 ? (
+              <div className="py-12 text-center flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Globe2 className="w-8 h-8 text-slate-300 dark:text-neutral-700 animate-pulse" />
+                <span className="text-xs font-medium">暂无外部引流数据</span>
+                <p className="text-[11px] max-w-xs text-slate-400 dark:text-zinc-500">
+                  当有访客通过 Google、GitHub、知乎或外部链接访问您的博文时，引流来源与精准占比将在此实时自动生成。
+                </p>
+              </div>
+            ) : (
+              sources.map((item, idx) => {
+                const percent = Math.round((item.count / totalSourceVisits) * 100);
+                return (
+                  <div key={idx} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-medium text-foreground">{item.source}</span>
+                      <span className="font-mono text-muted-foreground">
+                        {item.count} 次 ({percent}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          idx === 0 ? 'bg-emerald-500' : idx === 1 ? 'bg-blue-500' : idx === 2 ? 'bg-purple-500' : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        idx === 0 ? 'bg-emerald-500' : idx === 1 ? 'bg-blue-500' : idx === 2 ? 'bg-purple-500' : 'bg-amber-500'
-                      }`}
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

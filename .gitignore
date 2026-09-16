@@ -82,3 +82,12 @@ backend/uploads/*
 test-results/
 playwright-report/
 coverage/
+
+# ==========================================
+# 部署私钥与敏感配置文件 (安全防范：严禁提交)
+# ==========================================
+deploy/keys/
+*.rsa
+*.pem
+deploy/.env
+scratch/

@@ -1,44 +1,224 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Dancing+Script:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* 基础微光折射底座 */
+  .liquid-glass-base {
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+  }
+
+  /* 双主题自适应卡片：凝脂白玉（浅色）× 深邃曜石（深色） */
+  .liquid-glass-card {
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(20px) saturate(190%) contrast(102%);
+    -webkit-backdrop-filter: blur(20px) saturate(190%) contrast(102%);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(203, 213, 225, 0.92);
+    box-shadow:
+      0 4px 16px -2px rgba(15, 23, 42, 0.06),
+      0 1px 3px 0 rgba(15, 23, 42, 0.04),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 1);
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dark .liquid-glass-card {
+    background: rgba(14, 17, 26, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow:
+      0 14px 40px -4px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .liquid-glass-card:hover {
+    box-shadow:
+      0 12px 30px -4px rgba(15, 23, 42, 0.08),
+      inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 1);
+  }
+
+  .dark .liquid-glass-card:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow:
+      0 20px 50px -4px rgba(0, 0, 0, 0.75),
+      inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.25),
+      0 0 28px rgba(16, 185, 129, 0.12);
+  }
+
+  /* 管理端立体沉浸卡片标准 (Admin Card Standard) */
+  .admin-card {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(203, 213, 225, 0.95);
+    box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  }
+
+  .dark .admin-card {
+    background: rgba(18, 20, 29, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  }
+
+
+
+  /* 状态胶囊与交互微岛 (Pill) */
+  .liquid-glass-pill {
+    position: relative;
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    box-shadow:
+      0 2px 8px rgba(15, 23, 42, 0.04),
+      inset 0 1px 1px rgba(255, 255, 255, 0.95);
+    transition: all 0.25s ease;
+  }
+
+  .dark .liquid-glass-pill {
+    background: rgba(26, 30, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.2);
+  }
+
+  /* 悬浮导航与底栏浮岛 (Dock) */
+  .liquid-glass-dock {
+    position: relative;
+    backdrop-filter: blur(24px) saturate(190%) contrast(102%);
+    -webkit-backdrop-filter: blur(24px) saturate(190%) contrast(102%);
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow:
+      0 12px 36px -4px rgba(15, 23, 42, 0.08),
+      inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03);
+  }
+
+  .dark .liquid-glass-dock {
+    background: rgba(14, 16, 23, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 16px 48px -4px rgba(0, 0, 0, 0.7),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.6);
+  }
+
+  /* 苹果高光渐变蒙版描边玻璃（基础单元素） */
+  .liquid-glass {
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(8px) saturate(180%);
+    -webkit-backdrop-filter: blur(8px) saturate(180%);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(203, 213, 225, 0.7);
+    box-shadow:
+      0 4px 16px rgba(15, 23, 42, 0.05),
+      inset 0 1px 1px rgba(255, 255, 255, 0.85);
+  }
+
+  .dark .liquid-glass {
+    background: rgba(255, 255, 255, 0.02);
+    background-blend-mode: luminosity;
+    border: none;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .dark .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.4px;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(255, 255, 255, 0.15) 20%,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0) 60%,
+      rgba(255, 255, 255, 0.15) 80%,
+      rgba(255, 255, 255, 0.45) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .font-serif-instrument {
+    font-family: 'Instrument Serif', Georgia, serif;
+  }
+}
+
 @layer base {
   :root {
-    --background: #ffffff;
-    --foreground: #09090b;
-    --card: #ffffff;
-    --card-foreground: #09090b;
+    /* 浅色模式：雪白/瓷白底色 -> 微磨砂白瓷卡片 -> 微冷灰边框与细腻阴影 */
+    --background: #fbfbfd;
+    --foreground: #090a0f;
+    --card: rgba(255, 255, 255, 0.95);
+    --card-foreground: #090a0f;
     --popover: #ffffff;
-    --popover-foreground: #09090b;
-    --primary: #18181b;
-    --primary-foreground: #fafafa;
-    --secondary: #f4f4f5;
-    --secondary-foreground: #18181b;
-    --muted: #f4f4f5;
-    --muted-foreground: #71717a;
-    --accent: #f4f4f5;
-    --accent-foreground: #18181b;
-    --border: #e4e4e7;
+    --popover-foreground: #090a0f;
+    --primary: #090a0f;
+    --primary-foreground: #fbfbfd;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #090a0f;
+    --muted: #f1f5f9;
+    --muted-foreground: #475569;
+    --accent: #f1f5f9;
+    --accent-foreground: #090a0f;
+    --border: rgba(203, 213, 225, 0.92);
     --radius: 0.75rem;
   }
 
   .dark {
-    --background: #09090b;
-    --foreground: #fafafa;
-    --card: #121215;
-    --card-foreground: #fafafa;
+    /* 深色模式：深邃曜石黑底色 -> 深黑磨砂卡片 -> 1px 极细微光边界与环境光晕 */
+    --background: #090a0f;
+    --foreground: #f8fafc;
+    --card: rgba(18, 20, 29, 0.65);
+    --card-foreground: #f8fafc;
     --popover: #121215;
-    --popover-foreground: #fafafa;
-    --primary: #fafafa;
-    --primary-foreground: #18181b;
-    --secondary: #27272a;
-    --secondary-foreground: #fafafa;
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
-    --accent: #27272a;
-    --accent-foreground: #fafafa;
-    --border: #27272a;
+    --popover-foreground: #f8fafc;
+    --primary: #f8fafc;
+    --primary-foreground: #090a0f;
+    --secondary: rgba(30, 41, 59, 0.5);
+    --secondary-foreground: #f8fafc;
+    --muted: #1e222d;
+    --muted-foreground: #94a3b8;
+    --accent: #1e222d;
+    --accent-foreground: #f8fafc;
+    --border: rgba(255, 255, 255, 0.08);
   }
+}
+
+@layer utilities {
+  .bg-card {
+    background-color: var(--card);
+  }
+  .text-card-foreground {
+    color: var(--card-foreground);
+  }
+  .bg-secondary {
+    background-color: var(--secondary);
+  }
+  .text-muted-foreground {
+    color: var(--muted-foreground);
+  }
+  .border-border {
+    border-color: var(--border);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  max-width: 100%;
+  transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body {
@@ -48,20 +228,367 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  max-width: 100%;
+  transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Custom minimal scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* 翡翠极光呼吸辉光 (Aurora Breathing) */
+@keyframes aurora-breathing {
+  0%, 100% {
+    filter: drop-shadow(0 4px 16px rgba(16, 185, 129, 0.28)) drop-shadow(0 0 24px rgba(6, 182, 212, 0.16));
+  }
+  50% {
+    filter: drop-shadow(0 6px 26px rgba(16, 185, 129, 0.52)) drop-shadow(0 0 36px rgba(6, 182, 212, 0.32));
+  }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+.animate-aurora-glow {
+  animation: aurora-breathing 4.5s ease-in-out infinite;
 }
-::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.4);
-  border-radius: 9999px;
+
+/* 极光流动文字渐变 */
+@keyframes aurora-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.7);
+
+.aurora-gradient-text {
+  background: linear-gradient(135deg, #10b981 0%, #14b8a6 25%, #06b6d4 50%, #3b82f6 75%, #10b981 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: aurora-flow 8s linear infinite;
 }
+
+/* 三维景深卡片通用样式 */
+.card-depth {
+  background: var(--card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+}
+
+.dark .card-depth {
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* 全局彻底隐藏所有滚动条（包括整页与全部容器，全站依然可通过滚轮与触控丝滑滑动） */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ===== 星际远航 IP：深空星轨背景（纯 CSS 多层径向渐变星点，零 JS 开销） ===== */
+.starfield {
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(16, 185, 129, 0.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 28% 68%, rgba(148, 163, 184, 0.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 42% 12%, rgba(34, 211, 238, 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 56% 82%, rgba(20, 184, 166, 0.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 68% 38%, rgba(226, 232, 240, 0.35) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 82% 62%, rgba(167, 243, 208, 0.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 92% 15%, rgba(34, 211, 238, 0.4) 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 88%, rgba(16, 185, 129, 0.4) 50%, transparent 51%);
+}
+
+.dark .starfield {
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(52, 211, 153, 0.75) 50%, transparent 51%),
+    radial-gradient(1px 1px at 28% 68%, rgba(148, 163, 184, 0.55) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 42% 12%, rgba(103, 232, 249, 0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 56% 82%, rgba(45, 212, 191, 0.65) 50%, transparent 51%),
+    radial-gradient(1px 1px at 68% 38%, rgba(226, 232, 240, 0.5) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 82% 62%, rgba(167, 243, 208, 0.65) 50%, transparent 51%),
+    radial-gradient(1px 1px at 92% 15%, rgba(103, 232, 249, 0.6) 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 88%, rgba(52, 211, 153, 0.6) 50%, transparent 51%);
+}
+
+/* ===== 设计系统基座：Cinematic Obsidian（暗黑主导）× Paper Porcelain（纸感浅色） ===== */
+
+/*
+ * 媒体纱幕：浅色模式下所有媒体内容（视频/星图/封面）上层统一加盖深色电影纱幕，
+ * 保证浅色主题下媒体可读性与电影感一致（解决"切白视频看不清"与"双主题差异过大"）。
+ * 深色模式下减弱为轻量暗角，避免过度压暗。
+ */
+.media-scrim {
+  position: relative;
+}
+.media-scrim::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(9, 10, 15, 0.42) 0%,
+    rgba(9, 10, 15, 0.22) 45%,
+    rgba(9, 10, 15, 0.12) 100%
+  );
+}
+.dark .media-scrim::after {
+  background: linear-gradient(
+    to top,
+    rgba(9, 10, 15, 0.35) 0%,
+    rgba(9, 10, 15, 0.08) 50%,
+    transparent 100%
+  );
+}
+
+/* 纸感卡片：浅色独立设计的高对比艺术纸（非反色），墨色文字 + 多级实影 */
+.paper-card {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 16px -4px rgba(15, 23, 42, 0.08),
+    0 12px 32px -12px rgba(15, 23, 42, 0.1);
+}
+.dark .paper-card {
+  background: rgba(23, 24, 29, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* 手写艺术字体（Caveat 可变字体，本地自托管零外链依赖） */
+@font-face {
+  font-family: 'Caveat';
+  src: url('/fonts/caveat-var.woff2') format('woff2-variations');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+.font-handwrite {
+  font-family: 'Caveat', 'Segoe Script', cursive;
+}
+
+/* 手写描绘动画：笔画勾勒 → 渐变填充落版 */
+@keyframes hw-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes hw-fill {
+  to {
+    fill-opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hw-char {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+    fill-opacity: 1 !important;
+  }
+}
+
+/* VisionOS 液态透镜折射玻璃 (Liquid Lens Refraction) */
+.liquid-glass-lens {
+  -webkit-backdrop-filter: blur(28px) saturate(190%) contrast(105%);
+  backdrop-filter: blur(28px) saturate(190%) contrast(105%);
+}
+
+/* 隐藏滚动条但保留平滑滚动功能 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   Hayden Xue 品牌全套加载动画与流光系统 (Loading & Shimmer System)
+   ========================================================================== */
+
+@keyframes liquidShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-liquid-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-liquid-shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: liquidShimmer 1.8s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  content: '';
+}
+
+.dark .animate-liquid-shimmer::after {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(16, 185, 129, 0.12) 40%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+@keyframes pulseGlowRing {
+  0%, 100% {
+    transform: scale(0.95);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.85;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlowRing 2.4s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   VisionOS 全透光微磨砂高斯呼吸与空间透镜系统 (Frosted Breathing & Liquid Lens)
+   ========================================================================== */
+
+@keyframes frostedBreathing {
+  0%, 100% {
+    opacity: 0.55;
+    filter: saturate(140%);
+  }
+  50% {
+    opacity: 0.88;
+    filter: saturate(180%);
+  }
+}
+
+.animate-frosted-breathing {
+  animation: frostedBreathing 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes liquidLensFloat {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    box-shadow: 
+      0 12px 40px -4px rgba(16, 185, 129, 0.12),
+      0 0 0 1px rgba(255, 255, 255, 0.15),
+      inset 0 1px 2px 0 rgba(255, 255, 255, 0.4);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.015);
+    box-shadow: 
+      0 20px 50px -4px rgba(16, 185, 129, 0.22),
+      0 0 0 1px rgba(52, 211, 153, 0.35),
+      inset 0 1px 3px 0 rgba(255, 255, 255, 0.6);
+  }
+}
+
+.animate-lens-float {
+  animation: liquidLensFloat 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-liquid-shimmer::after,
+  .animate-pulse-glow,
+  .animate-aurora-slow,
+  .animate-aurora-reverse,
+  .animate-aurora-mid,
+  .animate-warp-compass {
+    animation: none !important;
+  }
+}
+
+@keyframes auroraSlow {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8%, 6%, 0) scale(1.12);
+  }
+}
+
+@keyframes auroraReverse {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-7%, -8%, 0) scale(1.15);
+  }
+}
+
+@keyframes auroraMid {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-6%, 8%, 0) scale(1.08);
+  }
+}
+
+.animate-aurora-slow {
+  animation: auroraSlow 18s ease-in-out infinite alternate;
+}
+
+.animate-aurora-reverse {
+  animation: auroraReverse 22s ease-in-out infinite alternate;
+}
+
+.animate-aurora-mid {
+  animation: auroraMid 25s ease-in-out infinite alternate;
+}
+
+@keyframes warpCompass {
+  0% {
+    transform: scale(0.65) rotate(-45deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04) rotate(15deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.animate-warp-compass {
+  animation: warpCompass 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeRise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+

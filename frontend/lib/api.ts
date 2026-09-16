@@ -1,4 +1,4 @@
-import { ApiResponse, PageResult, Post, Project, Journey, JourneyImage, NowRecord, Timeline, SiteSetting, Media, DashboardStats, Category, Tag, LoginResponse, User, Memo, Friend, Comment, UserManageVO, AuditLog, AnalyticsOverview, AnalyticsTrend, AnalyticsTopPost, AnalyticsSource, AiChatRequest } from './types';
+import { ApiResponse, PageResult, Post, Project, Journey, JourneyImage, NowRecord, Timeline, SiteSetting, Media, DashboardStats, Category, Tag, LoginResponse, User, Memo, Friend, Comment, UserManageVO, AuditLog, AnalyticsOverview, AnalyticsTrend, AnalyticsTopPost, AnalyticsSource, AiChatRequest, FriendActivity, FriendApplyRequest, FriendInspectResult, KnowledgeGraphVO, AiCodeLensRequest, AiCodeLensResponse, AiInlineLensRequest, AiInlineLensResponse, AiCuratedPathRequest, AiCuratedPathVO, AiExtractRadarRequest, AiRadarInsight, AiStreamTranslateRequest, AiBacklinkSuggestionVO, AiProviderConfig, AiProviderTestRequest, AiProviderTestResponse, AiCitationItem, AiEditorAssistRequest, AiEditorAssistResponse, LikeToggleVO, UserLikeItem, UserCommentItem, InAppNotification } from './types';
 
 export function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -31,7 +31,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('hayden_token') || localStorage.getItem('howard_token');
+    const token = localStorage.getItem('hayden_token');
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
@@ -71,8 +71,6 @@ export const api = {
     request<{ captchaRequired: boolean }>(`/api/auth/captcha-status${username ? `?username=${encodeURIComponent(username)}` : ''}`),
   getCaptcha: () =>
     request<{ captchaKey: string; captchaImage: string; imageBase64: string }>('/api/auth/captcha'),
-  resetAttempts: (username?: string) =>
-    request<void>(`/api/auth/reset-attempts${username ? `?username=${encodeURIComponent(username)}` : ''}`, { method: 'POST' }),
   login: (data: { username: string; password: string; captchaKey?: string; captchaCode?: string }) =>
     request<LoginResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   register: (data: { username: string; password: string; nickname?: string; email?: string; avatar?: string }) =>
@@ -85,7 +83,7 @@ export const api = {
     request<void>('/api/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
 
   // Posts
-  getPosts: (params?: { page?: number; pageSize?: number; category?: string; tag?: string; keyword?: string; lang?: string }) => {
+  getPosts: (params?: { page?: number; pageSize?: number; category?: string; tag?: string; keyword?: string; lang?: string; maturity?: string }) => {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
     if (params?.pageSize) query.set('pageSize', String(params.pageSize));
@@ -93,6 +91,7 @@ export const api = {
     if (params?.tag) query.set('tag', params.tag);
     if (params?.keyword) query.set('keyword', params.keyword);
     if (params?.lang) query.set('lang', params.lang);
+    if (params?.maturity) query.set('maturity', params.maturity);
     return request<PageResult<Post>>(`/api/posts?${query.toString()}`);
   },
   getFeaturedPosts: (limit = 3) => request<Post[]>(`/api/posts/featured?limit=${limit}`),
@@ -178,6 +177,7 @@ export const api = {
   // Settings
   getSettings: () => request<SiteSetting>('/api/settings'),
   updateSettings: (data: Partial<SiteSetting>) => request<void>('/api/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  testMinio: (data?: any) => request<{ success: boolean; message: string; bucketExists?: boolean; latencyMs?: number }>('/api/settings/test-minio', { method: 'POST', body: JSON.stringify(data || {}) }),
 
   // Media
   getMedia: (params?: { page?: number; pageSize?: number; keyword?: string }) => {
@@ -187,7 +187,56 @@ export const api = {
     if (params?.keyword) query.set('keyword', params.keyword);
     return request<PageResult<Media>>(`/api/media?${query.toString()}`);
   },
+  getPresignedUrl: async (filename: string, contentType: string, size?: number) => {
+    return request<{
+      uploadUrl: string;
+      objectKey: string;
+      publicUrl: string;
+      storageType: string;
+      mediaId?: number;
+    }>('/api/media/presigned-url', {
+      method: 'POST',
+      body: JSON.stringify({ filename, contentType, size }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
   uploadMedia: async (file: File) => {
+    // 1. 优先尝试 S3 / MinIO 预签名直传对象存储
+    let presignedMediaId: number | undefined;
+    try {
+      const presigned = await api.getPresignedUrl(file.name, file.type, file.size);
+      if (presigned && presigned.uploadUrl) {
+        presignedMediaId = presigned.mediaId;
+        const directRes = await fetch(presigned.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+          },
+          body: file,
+        });
+        if (directRes.ok) {
+          return {
+            id: presigned.mediaId ?? Date.now(),
+            filename: file.name,
+            url: presigned.publicUrl,
+            objectKey: presigned.objectKey,
+            mimeType: file.type,
+            size: file.size,
+            storageType: presigned.storageType,
+            createdAt: new Date().toISOString(),
+          } as unknown as Media;
+        } else if (presignedMediaId) {
+          api.deleteMedia(presignedMediaId).catch(() => {});
+        }
+      }
+    } catch (e) {
+      if (presignedMediaId) {
+        api.deleteMedia(presignedMediaId).catch(() => {});
+      }
+      console.warn('预签名直传失败或未启用，平滑降级为服务器代理上传:', e);
+    }
+
+    // 2. 降级为服务器代理上传
     const formData = new FormData();
     formData.append('file', file);
     return request<Media>('/api/media/upload', {
@@ -196,6 +245,34 @@ export const api = {
     });
   },
   deleteMedia: (id: number) => request<void>(`/api/media/${id}`, { method: 'DELETE' }),
+
+  // 用户公开主页（脱敏只读）
+  getPublicUserProfile: (username: string, page = 1, pageSize = 10) =>
+    request<{
+      profile: {
+        username: string;
+        nickname?: string;
+        avatar?: string;
+        bio?: string;
+        github?: string;
+        website?: string;
+        createdAt: string;
+      };
+      comments: PageResult<{ targetType: string; targetId: number; content: string; createdAt: string }>;
+      likeCount: number;
+    }>(`/api/users/${encodeURIComponent(username)}/public?page=${page}&pageSize=${pageSize}`),
+
+  // Unified Likes Engine (统一点赞引擎)
+  toggleLike: (targetType: string, targetId: number) =>
+    request<LikeToggleVO>('/api/likes/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ targetType, targetId }),
+    }),
+  getLikeBatchStatus: (targetType: string, targetIds: number[]) =>
+    request<Record<string, boolean>>('/api/likes/batch-status', {
+      method: 'POST',
+      body: JSON.stringify({ targetType, targetIds }),
+    }),
 
   // Memos
   getMemos: (params?: { page?: number; pageSize?: number }) => {
@@ -211,9 +288,13 @@ export const api = {
 
   // Friends
   getFriends: () => request<Friend[]>('/api/friends'),
+  getFriendStream: () => request<FriendActivity[]>('/api/friends/stream'),
+  inspectFriendSite: (url: string) => request<FriendInspectResult>(`/api/friends/inspect?url=${encodeURIComponent(url)}`),
+  applyFriend: (data: FriendApplyRequest) => request<void>('/api/friends/apply', { method: 'POST', body: JSON.stringify(data) }),
   getAdminFriends: () => request<Friend[]>('/api/friends/admin'),
   createFriend: (data: Partial<Friend>) => request<number>('/api/friends', { method: 'POST', body: JSON.stringify(data) }),
   updateFriend: (id: number, data: Partial<Friend>) => request<void>(`/api/friends/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  auditFriend: (id: number, status: string) => request<void>(`/api/friends/${id}/status?status=${status}`, { method: 'PATCH' }),
   deleteFriend: (id: number) => request<void>(`/api/friends/${id}`, { method: 'DELETE' }),
 
   // Comments
@@ -232,26 +313,46 @@ export const api = {
     request<void>(`/api/comments/${id}/status?status=${status}`, { method: 'PATCH' }),
   deleteComment: (id: number) => request<void>(`/api/comments/${id}`, { method: 'DELETE' }),
 
+  // Notifications (站内通知)
+  getNotifications: (params?: { page?: number; pageSize?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+    return request<PageResult<InAppNotification>>(`/api/notifications?${query.toString()}`);
+  },
+  getUnreadNotificationCount: () => request<number>('/api/notifications/unread-count'),
+  markNotificationRead: (id: number) => request<void>(`/api/notifications/${id}/read`, { method: 'PUT' }),
+  markAllNotificationsRead: () => request<void>('/api/notifications/read-all', { method: 'PUT' }),
+
   // Dashboard
   getDashboardStats: () => request<DashboardStats>('/api/dashboard/stats'),
 
-  // Reader Profile & Self Activity
+  // Reader Profile & Self Activity (用户中心与个人足迹)
   getMyProfile: () => request<User>('/api/user/profile'),
-  updateMyProfile: (data: { nickname?: string; avatar?: string }) =>
+  updateMyProfile: (data: { nickname?: string; avatar?: string; bio?: string; github?: string; website?: string }) =>
     request<User>('/api/user/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  uploadMyAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{ url: string }>('/api/user/avatar', {
+      method: 'POST',
+      body: formData,
+    });
+  },
   changeMyPassword: (data: { oldPassword: string; newPassword: string }) =>
     request<void>('/api/user/password', { method: 'PUT', body: JSON.stringify(data) }),
   getMyComments: (params?: { page?: number; pageSize?: number }) => {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
     if (params?.pageSize) query.set('pageSize', String(params.pageSize));
-    return request<PageResult<Comment>>(`/api/user/my-comments?${query.toString()}`);
+    return request<PageResult<UserCommentItem>>(`/api/user/my-comments?${query.toString()}`);
   },
-  getMyLikes: (params?: { page?: number; pageSize?: number }) => {
+  getMyLikes: (params?: { targetType?: string; page?: number; pageSize?: number }) => {
     const query = new URLSearchParams();
+    if (params?.targetType) query.set('targetType', params.targetType);
     if (params?.page) query.set('page', String(params.page));
     if (params?.pageSize) query.set('pageSize', String(params.pageSize));
-    return request<PageResult<Memo>>(`/api/user/my-likes?${query.toString()}`);
+    return request<PageResult<UserLikeItem>>(`/api/user/my-likes?${query.toString()}`);
   },
 
   // Admin Users
@@ -284,12 +385,34 @@ export const api = {
 
   // Hayden AI Digital Twin & In-line Spark
   getAiStatus: () => request<{ enabled: boolean; hasKey: boolean; model: string }>('/api/ai/status'),
+  testAiProvider: (req: AiProviderTestRequest) =>
+    request<AiProviderTestResponse>('/api/ai/test-connection', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
   streamAiChat: async (
     reqData: AiChatRequest,
-    onChunk: (chunk: string) => void,
-    onDone?: () => void,
-    onError?: (err: any) => void
+    handlerOrOptions: ((chunk: string) => void) | {
+      signal?: AbortSignal;
+      onChunk?: (chunk: string) => void;
+      onThinking?: (delta: string) => void;
+      onContent?: (delta: string) => void;
+      onCitations?: (citations: any[]) => void;
+      onToolStatus?: (toolStatus: any) => void;
+      onAction?: (action: any) => void;
+      onQuota?: (quota: any) => void;
+      onMeta?: (meta: any) => void;
+      onDone?: () => void;
+      onError?: (err: any) => void;
+    },
+    legacyOnDone?: () => void,
+    legacyOnError?: (err: any) => void
   ) => {
+    const callbacks =
+      typeof handlerOrOptions === 'function'
+        ? { onChunk: handlerOrOptions, onDone: legacyOnDone, onError: legacyOnError, signal: undefined }
+        : handlerOrOptions;
+
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/ai/chat`;
     try {
@@ -299,10 +422,223 @@ export const api = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(reqData),
+        signal: callbacks.signal,
       });
 
       if (!response.ok) {
         throw new Error(`AI 请求失败: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('ReadableStream not supported.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let currentEvent = 'message';
+
+      const handleEventBlock = (event: string, rawData: string) => {
+        const trimmed = rawData.trim();
+        if (trimmed === '[DONE]') {
+          callbacks.onDone?.();
+          return true;
+        }
+
+        let isJson = false;
+        let parsed: any = null;
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          try {
+            parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object') {
+              isJson = true;
+            }
+          } catch {
+            isJson = false;
+          }
+        }
+
+        if (isJson && parsed) {
+          // 严密拦截 quota 配额首包与 meta 元数据，绝不泄漏至正文打字机队列
+          if (event === 'quota' || parsed.type === 'quota' || ('allowed' in parsed && 'minuteRemaining' in parsed)) {
+            callbacks.onQuota?.(parsed);
+            return false;
+          }
+          if (event === 'meta' || parsed.type === 'meta') {
+            callbacks.onMeta?.(parsed);
+            return false;
+          }
+          if (parsed.type === 'error') {
+            callbacks.onError?.(new Error(parsed.content || 'AI 推理服务异常'));
+            return false;
+          }
+          if (parsed.type === 'thinking') {
+            callbacks.onThinking?.(parsed.delta || '');
+            callbacks.onChunk?.(rawData);
+            return false;
+          }
+          if (parsed.type === 'citations') {
+            callbacks.onCitations?.(Array.isArray(parsed.data) ? parsed.data : []);
+            callbacks.onChunk?.(rawData);
+            return false;
+          }
+          if (parsed.type === 'tool_status') {
+            callbacks.onToolStatus?.(parsed);
+            callbacks.onChunk?.(rawData);
+            return false;
+          }
+          if (parsed.type === 'action') {
+            callbacks.onAction?.(parsed);
+            callbacks.onChunk?.(rawData);
+            return false;
+          }
+          if (parsed.type === 'delta') {
+            if (parsed.content) {
+              callbacks.onContent?.(parsed.content);
+              callbacks.onChunk?.(parsed.content);
+            }
+            return false;
+          }
+        }
+
+        // 屏蔽非正文事件
+        if (event === 'quota' || event === 'meta') {
+          return false;
+        }
+
+        if (event === 'thinking') {
+          callbacks.onThinking?.(rawData);
+          callbacks.onChunk?.(rawData);
+        } else {
+          callbacks.onContent?.(rawData);
+          callbacks.onChunk?.(rawData);
+        }
+        return false;
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line || !line.trim()) {
+            currentEvent = 'message';
+            continue;
+          }
+          if (line.startsWith('event:')) {
+            currentEvent = line.replace(/^event:\s*/, '').trim();
+            continue;
+          }
+          if (line.startsWith('data:')) {
+            const data = line.startsWith('data: ') ? line.substring(6) : line.substring(5);
+            const isDone = handleEventBlock(currentEvent, data);
+            if (isDone) return;
+          }
+        }
+      }
+
+      if (buffer.startsWith('data:')) {
+        const data = buffer.startsWith('data: ') ? buffer.substring(6) : buffer.substring(5);
+        handleEventBlock(currentEvent, data);
+      }
+
+      callbacks.onDone?.();
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || err?.name === 'CanceledError') {
+        callbacks.onDone?.();
+        return;
+      }
+      console.error('[AI Chat Stream Error]', err);
+      if (callbacks.onError) callbacks.onError(err);
+      else throw err;
+    }
+  },
+
+  // 知识图谱拓扑
+  getKnowledgeGraph: () => request<KnowledgeGraphVO>('/api/ai/knowledge-graph'),
+
+  // 代码块 AI 原地架构透视
+  explainCode: (req: AiCodeLensRequest) =>
+    request<AiCodeLensResponse>('/api/ai/code-lens', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // 划词轻量原地显微镜
+  explainInline: (req: AiInlineLensRequest) =>
+    request<AiInlineLensResponse>('/api/ai/inline-lens', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // 定制学习漫游路线生成器
+  generateReadingPath: (req: AiCuratedPathRequest) =>
+    request<AiCuratedPathVO>('/api/ai/reading-path', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // CMS 概念雷达提取
+  extractRadar: (req: AiExtractRadarRequest) =>
+    request<AiRadarInsight>('/api/ai/extract-radar', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // CMS 行内写作副驾（扩写、润色、生成代码、校对）
+  editorAssist: (req: AiEditorAssistRequest) =>
+    request<AiEditorAssistResponse>('/api/ai/editor-assist', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // CMS 双向链接建议
+  getBacklinks: (postId: number) =>
+    request<AiBacklinkSuggestionVO>(`/api/ai/backlinks/${postId}`),
+
+  // 获取当前用户或访客 AI 额度状态
+  getAiQuota: () =>
+    request<{
+      allowed: boolean;
+      minuteRemaining: number;
+      dayRemaining: number;
+      maxTokens: number;
+      clientType: string;
+      reason: string;
+    }>('/api/ai/quota'),
+
+  // CMS 双栏流式双语技术精译
+  streamTranslatePost: async (
+    reqData: AiStreamTranslateRequest,
+    onMeta: (meta: { title: string; excerpt: string; seoDescription: string }) => void,
+    onDelta: (delta: string) => void,
+    onDone?: () => void,
+    onError?: (err: any) => void
+  ) => {
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/ai/stream-translate`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('hayden_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(reqData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`翻译请求失败: ${response.statusText}`);
       }
 
       if (!response.body) {
@@ -325,26 +661,28 @@ export const api = {
           const trimmed = line.trim();
           if (!trimmed) continue;
           if (trimmed.startsWith('data:')) {
-            const data = trimmed.replace(/^data:\s*/, '');
-            if (data === '[DONE]') {
+            const raw = trimmed.replace(/^data:\s*/, '');
+            if (raw === '[DONE]') {
               if (onDone) onDone();
               return;
             }
-            onChunk(data);
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed.type === 'meta') {
+                onMeta(parsed);
+              } else if (parsed.type === 'delta') {
+                onDelta(parsed.delta);
+              }
+            } catch {
+              onDelta(raw);
+            }
           }
-        }
-      }
-
-      if (buffer.trim().startsWith('data:')) {
-        const data = buffer.trim().replace(/^data:\s*/, '');
-        if (data !== '[DONE]') {
-          onChunk(data);
         }
       }
 
       if (onDone) onDone();
     } catch (err) {
-      console.error('[AI Chat Stream Error]', err);
+      console.error('[AI Translation Stream Error]', err);
       if (onError) onError(err);
       else throw err;
     }

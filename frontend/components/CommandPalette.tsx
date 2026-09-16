@@ -76,7 +76,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     { name: t('nav.blog'), path: '/blog', icon: <BookOpen className="w-4 h-4 text-teal-500" /> },
     { name: t('nav.projects'), path: '/projects', icon: <Code className="w-4 h-4 text-cyan-500" /> },
     { name: t('nav.journey'), path: '/journey', icon: <MapPin className="w-4 h-4 text-indigo-500" /> },
-    { name: t('nav.now'), path: '/now', icon: <Compass className="w-4 h-4 text-amber-500" /> },
     { name: t('nav.memos'), path: '/memos', icon: <Sparkles className="w-4 h-4 text-rose-500" /> },
     { name: t('nav.links'), path: '/links', icon: <ExternalLink className="w-4 h-4 text-blue-500" /> },
   ];

@@ -12,7 +12,7 @@ export async function GET() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
   const now = new Date().toISOString();
 
-  const staticPages = ['', '/about', '/blog', '/projects', '/journey', '/now', '/memos', '/links'];
+  const staticPages = ['', '/about', '/blog', '/projects', '/journey', '/memos', '/links'];
 
   const staticUrls = staticPages
     .map(

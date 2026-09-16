@@ -77,6 +77,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, initialMode = 'login' }:
     setLoading(true);
 
     try {
+      let accessToken = '';
       if (mode === 'login') {
         const res = await api.login({
           username,
@@ -84,16 +85,17 @@ export function AuthModal({ isOpen, onClose, onSuccess, initialMode = 'login' }:
           captchaKey: captchaRequired ? captchaKey : undefined,
           captchaCode: captchaRequired ? captchaCode.trim() : undefined,
         });
+        accessToken = res.accessToken;
         localStorage.setItem('hayden_token', res.accessToken);
-        localStorage.setItem('howard_token', res.accessToken);
         localStorage.setItem('hayden_user', JSON.stringify(res));
-        localStorage.setItem('howard_user', JSON.stringify(res));
       } else {
         const res = await api.register({ username, password, nickname, email });
+        accessToken = res.accessToken;
         localStorage.setItem('hayden_token', res.accessToken);
-        localStorage.setItem('howard_token', res.accessToken);
         localStorage.setItem('hayden_user', JSON.stringify(res));
-        localStorage.setItem('howard_user', JSON.stringify(res));
+      }
+      if (accessToken) {
+        document.cookie = `hayden_token=${encodeURIComponent(accessToken)}; path=/; max-age=604800; SameSite=Lax`;
       }
       onSuccess?.();
       onClose();

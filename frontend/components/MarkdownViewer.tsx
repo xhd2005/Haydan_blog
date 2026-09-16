@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { Check, Copy, Code2 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { useI18n } from '@/lib/i18n';
+import { useAiCodeLens, AiCodeLensButton, AiCodeLensPanel } from './blog/AiCodeLensDrawer';
 
 // 中英文混排微空格规范化（Pangu Spacing）
 export function formatPangu(text: string): string {
@@ -130,6 +131,7 @@ function highlightSyntax(code: string, lang: string = ''): React.ReactNode[] {
 function CodeBlock({ codeString, lang }: { codeString: string; lang?: string }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const { isOpen, loading, lensData, activeTab, setActiveTab, toggle } = useAiCodeLens(codeString, lang);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(codeString);
@@ -138,40 +140,62 @@ function CodeBlock({ codeString, lang }: { codeString: string; lang?: string }) 
   };
 
   return (
-    <div className="relative group my-6 rounded-2xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-[#121214] shadow-sm">
-      {/* 顶部工具栏 */}
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-100/90 dark:bg-zinc-900/90 border-b border-zinc-200/60 dark:border-zinc-800/80 text-[11px] font-mono text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <Code2 className="w-3.5 h-3.5 text-emerald-500" />
-          <span className="font-semibold uppercase tracking-wider text-foreground">
-            {lang || 'code'}
-          </span>
+    <div className="relative group my-8 rounded-2xl overflow-hidden border border-zinc-200/90 dark:border-white/[0.1] bg-zinc-50/90 dark:bg-[#0f1015] shadow-md dark:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.6)]">
+      {/* 顶部工具栏：macOS 经典红黄绿三色圆点 + 语言徽标 + AI 透视 + 复制按钮 */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-100/90 dark:bg-[#161820] border-b border-zinc-200/70 dark:border-white/[0.08] text-[11px] font-mono text-muted-foreground select-none">
+        <div className="flex items-center gap-3">
+          {/* macOS 经典窗口三色圆点 */}
+          <div className="flex items-center gap-1.5" aria-hidden="true">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] opacity-90 shadow-sm" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] opacity-90 shadow-sm" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f] opacity-90 shadow-sm" />
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary/80 border border-border/50 text-[10px] font-semibold tracking-wider uppercase text-foreground">
+            <Code2 className="w-3 h-3 text-emerald-500" />
+            <span>{lang || 'code'}</span>
+          </div>
         </div>
-        <button
-          onClick={handleCopy}
-          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          aria-label={t('detail.copy_code', '复制代码')}
-        >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="text-emerald-500 font-medium">{t('detail.copied', '已复制')}</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              <span>{t('detail.copy_code', '复制代码')}</span>
-            </>
-          )}
-        </button>
+
+        <div className="flex items-center gap-2">
+          {/* AI 架构透视微光按钮 */}
+          <AiCodeLensButton isOpen={isOpen} loading={loading} onToggle={toggle} />
+
+          <button
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary border border-transparent hover:border-border/60 transition-all cursor-pointer"
+            aria-label={t('detail.copy_code', '复制代码')}
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-emerald-500 font-medium">{t('detail.copied', '已复制')}</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>{t('detail.copy_code', '复制代码')}</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* 代码正文高对比度高亮展示 */}
-      <div className="p-4 overflow-x-auto text-xs font-mono leading-relaxed">
+      <div className="p-4 sm:p-5 overflow-x-auto text-xs font-mono leading-relaxed">
         <div className="table w-full">
           {highlightSyntax(codeString, lang)}
         </div>
       </div>
+
+      {/* 内嵌折叠架构透视面板 */}
+      <AiCodeLensPanel
+        isOpen={isOpen}
+        loading={loading}
+        lensData={lensData}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
     </div>
   );
 }
@@ -184,7 +208,7 @@ interface MarkdownViewerProps {
 export function MarkdownViewer({ content = '', className = '' }: MarkdownViewerProps) {
   return (
     <article
-      className={`prose prose-zinc dark:prose-invert max-w-prose mx-auto space-y-5 leading-[1.8] tracking-[0.01em] text-foreground ${className}`}
+      className={`prose prose-zinc dark:prose-invert max-w-none w-full space-y-5 leading-[1.8] tracking-[0.01em] text-foreground ${className}`}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}

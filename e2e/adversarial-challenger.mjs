@@ -73,7 +73,9 @@ console.log('▶ [DIMENSION 1] 路由与前后台穿透挑战 (Route & Layout Pe
   const shellCode = fs.readFileSync(shellFile, 'utf-8');
 
   // 验证隔离分支代码存在且满足隔离要求
-  const hasRouteCheck = shellCode.includes("const isAdminRoute = pathname?.startsWith('/admin')");
+  const hasRouteCheck =
+    shellCode.includes("const isAdminRoute = pathname?.startsWith('/admin')") ||
+    shellCode.includes("const isAdminRoute = pathname === '/admin' || pathname?.startsWith('/admin/')");
   const hasAdminBranch = shellCode.includes('if (isAdminRoute)') && shellCode.includes('<div className="w-full min-h-screen">');
   const hasNoNavbarInAdmin = !shellCode.slice(shellCode.indexOf('if (isAdminRoute)'), shellCode.indexOf('return (', shellCode.indexOf('if (isAdminRoute)') + 30) + 100).includes('<Navbar');
 

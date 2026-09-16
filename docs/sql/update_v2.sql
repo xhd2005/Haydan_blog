@@ -1,9 +1,9 @@
 -- ==========================================================
 -- Hayden Xue Personal Blog V2.0 增量平滑升级脚本 (保留已有数据)
--- Database: howard_blog
+-- Database: hayden_blog
 -- ==========================================================
 
-USE `howard_blog`;
+USE `hayden_blog`;
 
 -- 1. 扩充 posts 表字段 (点赞数、语言版本)
 SET @exist_like := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'like_count');
@@ -22,6 +22,10 @@ PREPARE stmt FROM @sql_ht; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @exist_hs := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'site_settings' AND COLUMN_NAME = 'hero_slogan');
 SET @sql_hs := IF(@exist_hs = 0, 'ALTER TABLE `site_settings` ADD COLUMN `hero_slogan` VARCHAR(255) DEFAULT NULL COMMENT \'首页Hero彩色渐变标语\';', 'SELECT 1;');
 PREPARE stmt FROM @sql_hs; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exist_hsc := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'site_settings' AND COLUMN_NAME = 'hero_slogan_config_json');
+SET @sql_hsc := IF(@exist_hsc = 0, 'ALTER TABLE `site_settings` ADD COLUMN `hero_slogan_config_json` TEXT DEFAULT NULL COMMENT \'首页Hero多排标语定制JSON\';', 'SELECT 1;');
+PREPARE stmt FROM @sql_hsc; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @exist_hd := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'site_settings' AND COLUMN_NAME = 'hero_description');
 SET @sql_hd := IF(@exist_hd = 0, 'ALTER TABLE `site_settings` ADD COLUMN `hero_description` TEXT DEFAULT NULL COMMENT \'首页Hero副标题自述\';', 'SELECT 1;');

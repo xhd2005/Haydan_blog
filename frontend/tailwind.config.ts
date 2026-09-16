@@ -17,6 +17,11 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
+        serif: ["'Instrument Serif'", "Georgia", "serif"],
+        handwrite: ["'Caveat'", "'Dancing Script'", "cursive", "sans-serif"],
+        dancing: ["'Dancing Script'", "cursive", "sans-serif"],
+        playfair: ["'Playfair Display'", "Georgia", "serif"],
+        modernSans: ["'Inter'", "system-ui", "-apple-system", "sans-serif"],
       },
     },
   },
