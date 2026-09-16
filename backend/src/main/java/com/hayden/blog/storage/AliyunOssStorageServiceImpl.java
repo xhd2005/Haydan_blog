@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Service
-public final class AliyunOssStorageServiceImpl implements StorageService {
+public non-sealed class AliyunOssStorageServiceImpl implements StorageService {
 
     private final SiteSettingService siteSettingService;
 

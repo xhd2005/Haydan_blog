@@ -27,19 +27,18 @@ COPY src ./src
 RUN mvn clean package -DskipTests -B
 
 # ==========================================
-# 阶段 2: 生产轻量 JRE 运行 (Runner)
+# 阶段 2: 生产 JDK 25 运行 (Runner)
 # ==========================================
-FROM eclipse-temurin:21-jre-alpine AS runner
+FROM openjdk:25-ea-slim AS runner
 WORKDIR /app
 
 # 设置时区为东八区上海时间
-RUN apk add --no-cache tzdata && \
-    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
-    echo "Asia/Shanghai" > /etc/timezone && \
-    apk del tzdata
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 创建安全系统账号运行
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# 创建安全系统账号运行并设置权限
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser && \
+    mkdir -p /tmp && chmod 777 /tmp
 
 # 从构建阶段提取打包生成的 jar
 COPY --from=builder /build/target/*.jar app.jar
@@ -47,7 +46,7 @@ RUN chown -R appuser:appgroup /app
 
 USER appuser
 
-# 优化生产级 JVM 参数 (限制堆内存 512M-768M 契合 4G 云主机，启用 G1GC 与虚拟线程)
+# 优化生产级 JVM 参数 (基于 JDK 25，限制堆内存 512M-768M 契合 4G 云主机，启用 G1GC 与虚拟线程)
 ENV JAVA_OPTS="-server \
     -Xms256m \
     -Xmx512m \
