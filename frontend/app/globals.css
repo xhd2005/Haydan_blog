@@ -4,6 +4,22 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --glass-bg-surface: rgba(255, 255, 255, 0.78);
+  --glass-bg-card: rgba(255, 255, 255, 0.88);
+  --glass-border-specular: rgba(203, 213, 225, 0.85);
+  --glass-glow-ambient: rgba(148, 163, 184, 0.12);
+  --glass-shadow-depth: 0 10px 30px -4px rgba(15, 23, 42, 0.07);
+}
+
+.dark {
+  --glass-bg-surface: rgba(14, 17, 26, 0.68);
+  --glass-bg-card: rgba(18, 22, 34, 0.72);
+  --glass-border-specular: rgba(255, 255, 255, 0.1);
+  --glass-glow-ambient: rgba(56, 189, 248, 0.08);
+  --glass-shadow-depth: 0 16px 48px -6px rgba(0, 0, 0, 0.75);
+}
+
 @layer components {
   /* 基础微光折射底座 */
   .liquid-glass-base {
@@ -590,5 +606,112 @@ body {
     transform: translate3d(0, 0, 0);
   }
 }
+
+/* ==========================================================================
+   VisionOS Spatial Glassmorphism System
+   ========================================================================== */
+
+.vision-dock {
+  background: var(--glass-bg-surface);
+  backdrop-filter: blur(28px) saturate(190%) contrast(105%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%) contrast(105%);
+  border: 1px solid var(--glass-border-specular);
+  box-shadow: var(--glass-shadow-depth), inset 0 1px 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vision-card {
+  background: var(--glass-bg-card);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border-specular);
+  box-shadow: var(--glass-shadow-depth), inset 0 1px 0.8px 0 rgba(255, 255, 255, 0.3);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+}
+
+.vision-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.15), inset 0 1px 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.dark .vision-card:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 20px 50px -8px rgba(0, 0, 0, 0.85), inset 0 1px 1px 0 rgba(255, 255, 255, 0.25), 0 0 30px rgba(56, 189, 248, 0.08);
+}
+
+.vision-pill {
+  background: var(--glass-bg-surface);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--glass-border-specular);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 0.5px rgba(255, 255, 255, 0.5);
+}
+
+/* Zero-CLS 流光微晶骨架屏 (Shimmer Glass Skeleton) */
+@keyframes shimmerGlassWave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer-glass-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 0.75rem;
+}
+
+.dark .shimmer-glass-skeleton {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.shimmer-glass-skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 100%
+  );
+  animation: shimmerGlassWave 1.8s infinite ease-in-out;
+}
+
+.dark .shimmer-glass-skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+}
+
+/* 顶部流光加载指示条 (Top Loading Bar) */
+@keyframes topBarGlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.glass-top-loading-bar {
+  height: 2px;
+  background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc, #38bdf8);
+  background-size: 200% 200%;
+  animation: topBarGlow 1.5s ease infinite;
+}
+
 
 
