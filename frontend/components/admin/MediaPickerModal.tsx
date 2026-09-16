@@ -8,12 +8,14 @@ import {
   X,
   Search,
   Film,
+  Image as ImageIcon,
   Loader2,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
   HardDrive,
 } from 'lucide-react';
+import { normalizeMediaUrl, isImageMedia } from '@/lib/media-url';
 
 interface MediaPickerModalProps {
   open: boolean;
@@ -163,31 +165,47 @@ export function MediaPickerModal({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {items.map((media) => {
                 const isSelected = selectedId === media.id;
+                const mediaUrl = normalizeMediaUrl(media.url);
+                const isImg = isImageMedia(media.mimeType, media.filename || media.url);
+
                 return (
                   <button
                     key={media.id}
                     type="button"
                     onClick={() => setSelectedId(media.id)}
-                    onDoubleClick={() => onSelect(media)}
+                    onDoubleClick={() => onSelect({ ...media, url: mediaUrl })}
                     className={`group relative flex flex-col rounded-2xl overflow-hidden border text-left transition-all cursor-pointer ${
                       isSelected
                         ? 'border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
                         : 'border-slate-200/80 dark:border-white/[0.08] hover:border-emerald-500/50 hover:shadow-md'
                     }`}
                   >
-                    {/* 视频缩略预览 */}
-                    <div className="relative aspect-video bg-neutral-950 overflow-hidden">
-                      <video
-                        src={media.url}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    {/* 媒体缩略预览：智能区分图片与视频 */}
+                    <div className="relative aspect-video bg-neutral-900 overflow-hidden flex items-center justify-center">
+                      {isImg ? (
+                        <img
+                          src={mediaUrl}
+                          alt={media.filename}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '/cover-placeholder.svg';
+                          }}
+                        />
+                      ) : (
+                        <video
+                          src={mediaUrl}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                       <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] font-mono text-emerald-400 border border-emerald-500/30">
-                        <Film className="w-2.5 h-2.5" />
-                        {(media.mimeType || 'video').split('/')[1]?.toUpperCase()}
+                        {isImg ? <ImageIcon className="w-2.5 h-2.5" /> : <Film className="w-2.5 h-2.5" />}
+                        {(media.mimeType || (isImg ? 'image/png' : 'video/mp4')).split('/')[1]?.toUpperCase()}
                       </div>
                       {isSelected && (
                         <div className="absolute top-1.5 right-1.5">
@@ -210,9 +228,17 @@ export function MediaPickerModal({
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-              <Film className="w-8 h-8 opacity-40" />
+              {mimePrefix.startsWith('image') ? (
+                <ImageIcon className="w-8 h-8 opacity-40" />
+              ) : (
+                <Film className="w-8 h-8 opacity-40" />
+              )}
               <span className="text-xs">
-                {keyword ? '未找到匹配的云端资产' : '媒体库暂无视频资产，请先在媒体中心上传'}
+                {keyword
+                  ? '未找到匹配的云端资产'
+                  : mimePrefix.startsWith('image')
+                  ? '媒体库暂无图片资产，请先在媒体中心上传'
+                  : '媒体库暂无视频资产，请先在媒体中心上传'}
               </span>
             </div>
           )}
@@ -250,18 +276,31 @@ export function MediaPickerModal({
             </button>
           </div>
 
-          <button
-            type="button"
-            disabled={selectedId === null}
-            onClick={() => {
-              const media = items.find((m) => m.id === selectedId);
-              if (media) onSelect(media);
-            }}
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>选用此视频</span>
-          </button>
+          {/* 动态选用确认按钮 */}
+          {(() => {
+            const selectedMedia = items.find((m) => m.id === selectedId);
+            const isImage = mimePrefix.startsWith('image') || (selectedMedia ? isImageMedia(selectedMedia.mimeType, selectedMedia.filename || selectedMedia.url) : true);
+            const actionLabel = isImage ? '选用此图片' : '选用此视频';
+
+            return (
+              <button
+                type="button"
+                disabled={selectedId === null}
+                onClick={() => {
+                  if (selectedMedia) {
+                    onSelect({
+                      ...selectedMedia,
+                      url: normalizeMediaUrl(selectedMedia.url),
+                    });
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{actionLabel}</span>
+              </button>
+            );
+          })()}
         </div>
       </div>
     </div>

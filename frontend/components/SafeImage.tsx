@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ImageOff, Sparkles } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { DEFAULT_COVER } from '@/lib/media-defaults';
+import { normalizeMediaUrl } from '@/lib/media-url';
 
 export interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
@@ -25,13 +26,15 @@ export function SafeImage({
   const { t } = useI18n();
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const [imgSrc, setImgSrc] = useState(src);
+  const normalizedInitial = normalizeMediaUrl(src) || fallbackSrc;
+  const [imgSrc, setImgSrc] = useState(normalizedInitial);
 
   useEffect(() => {
-    setImgSrc(src);
+    const normalized = normalizeMediaUrl(src) || fallbackSrc;
+    setImgSrc(normalized);
     setLoaded(false);
     setError(false);
-  }, [src]);
+  }, [src, fallbackSrc]);
 
   const getAspectClass = () => {
     switch (aspectRatio) {
@@ -78,6 +81,8 @@ export function SafeImage({
         <img
           src={imgSrc}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           onLoad={() => setLoaded(true)}
           onError={handleError}
           className={`w-full h-full object-cover transition-all duration-500 ease-out ${

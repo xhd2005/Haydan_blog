@@ -21,7 +21,10 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  endpoint: string,
+  options: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } } = {}
+): Promise<T> {
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${endpoint}`;
   const headers = new Headers(options.headers || {});
@@ -38,12 +41,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   try {
-    const fetchOptions: RequestInit = {
+    const fetchOptions: any = {
       ...options,
       headers,
     };
     if (options.cache) {
       fetchOptions.cache = options.cache;
+    }
+    if (options.next) {
+      fetchOptions.next = options.next;
     }
 
     const res = await fetch(url, fetchOptions);
@@ -96,11 +102,16 @@ export const api = {
     if (params?.keyword) query.set('keyword', params.keyword);
     if (params?.lang) query.set('lang', params.lang);
     if (params?.maturity) query.set('maturity', params.maturity);
-    return request<PageResult<Post>>(`/api/posts?${query.toString()}`);
+    return request<PageResult<Post>>(`/api/posts?${query.toString()}`, {
+      next: { tags: ['posts'] },
+    });
   },
-  getFeaturedPosts: (limit = 3) => request<Post[]>(`/api/posts/featured?limit=${limit}`),
-  getLatestPosts: (limit = 3) => request<Post[]>(`/api/posts/latest?limit=${limit}`),
-  getPostBySlug: (slug: string) => request<Post>(`/api/posts/${slug}`),
+  getFeaturedPosts: (limit = 3) =>
+    request<Post[]>(`/api/posts/featured?limit=${limit}`, { next: { tags: ['posts'] } }),
+  getLatestPosts: (limit = 3) =>
+    request<Post[]>(`/api/posts/latest?limit=${limit}`, { next: { tags: ['posts'] } }),
+  getPostBySlug: (slug: string) =>
+    request<Post>(`/api/posts/${slug}`, { next: { tags: ['posts'] } }),
   getPostById: (id: number) => request<Post>(`/api/posts/id/${id}`),
   likePost: (id: number) => request<void>(`/api/posts/${id}/like`, { method: 'POST' }),
 

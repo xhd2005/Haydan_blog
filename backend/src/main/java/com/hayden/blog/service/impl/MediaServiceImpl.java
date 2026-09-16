@@ -25,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import com.hayden.blog.dto.PresignedUploadRequest;
 import com.hayden.blog.dto.PresignedUploadResponse;
 import com.hayden.blog.storage.MinioStorageServiceImpl;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -278,7 +279,21 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
         wrapper.orderByDesc(Media::getCreatedAt);
 
         Page<Media> mediaPage = page(new Page<>(page, pageSize), wrapper);
-        return PageResult.of(mediaPage.getRecords(), mediaPage.getTotal(), page, pageSize);
+        List<Media> records = mediaPage.getRecords();
+        try {
+            StorageService storageService = storageFactory.getStorageService();
+            for (Media m : records) {
+                if (StringUtils.hasText(m.getObjectKey())) {
+                    String dynamicUrl = storageService.getAccessUrl(m.getObjectKey());
+                    if (StringUtils.hasText(dynamicUrl)) {
+                        m.setUrl(dynamicUrl);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("动态水合媒体访问URL失败: {}", e.getMessage());
+        }
+        return PageResult.of(records, mediaPage.getTotal(), page, pageSize);
     }
 
     @Override

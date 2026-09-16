@@ -36,6 +36,7 @@ import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { triggerRevalidate } from '@/components/admin/revalidate';
 import { AiPostCurationToolbar } from '@/components/admin/AiPostCurationToolbar';
 import { BilingualTranslationStudioModal } from '@/components/admin/BilingualTranslationStudioModal';
+import { normalizeMediaUrl } from '@/lib/media-url';
 
 export default function EditPostPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -62,8 +63,8 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
   const [aiRadarJson, setAiRadarJson] = useState('');
   const [translateStudioOpen, setTranslateStudioOpen] = useState(false);
 
-  // 属性抽屉展开状态 (默认折叠以获得 100% 正文视野，点击右上角展开)
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  // 属性抽屉展开状态 (桌面端默认展开，方便随时配置封面与发布属性)
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [excerptOpen, setExcerptOpen] = useState(false);
 
   // 结构化草稿防丢状态
@@ -225,10 +226,11 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
         translationPostId,
         aiRadarJson: aiRadarJson || undefined,
       });
-      await triggerRevalidate(['/blog', '/', `/blog/${slug}`]);
+      await triggerRevalidate(['/blog', '/', `/blog/${slug}`, 'layout'], 'posts');
       toast.success('文章已成功更新并刷新前台静态缓存！');
       localStorage.removeItem(`draft_post_${postId}`);
-      router.push('/admin/posts');
+      setStatus(submitStatus);
+      router.refresh();
     } catch (err: any) {
       toast.error(err.message || '保存失败');
     } finally {
@@ -436,6 +438,69 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
         <div className={`w-full min-w-0 transition-all duration-300 space-y-4 ${
           inspectorOpen ? 'xl:flex-1' : 'w-full'
         }`}>
+          {/* Notion 风格文章封面卡片 (Notion-style Post Cover Deck) */}
+          {cover ? (
+            <div className="group relative w-full h-48 sm:h-64 rounded-2xl overflow-hidden border border-border bg-secondary/60 shadow-sm transition-all">
+              <img
+                src={normalizeMediaUrl(cover)}
+                alt="Post Cover"
+                className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/cover-placeholder.svg';
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity" />
+
+              {/* 悬浮操作胶囊 */}
+              <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                <CoverPickerButton
+                  onSelect={(url) => setCover(url)}
+                  className="bg-black/60 hover:bg-black/80 text-white border-white/20 backdrop-blur-md shadow-md"
+                />
+                <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md text-[11px] font-semibold transition-colors shadow-md">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{uploading ? '上传中...' : '本地上传'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setCover('')}
+                  className="p-1.5 rounded-xl bg-black/60 hover:bg-rose-600/80 text-white/90 hover:text-white border border-white/20 backdrop-blur-md transition-colors cursor-pointer shadow-md"
+                  title="移除文章封面"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-card border border-dashed border-border/80 hover:border-emerald-500/50 transition-colors shadow-xs">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <ImageIcon className="w-4 h-4 text-emerald-500" />
+                <span>尚未设置封面大图（将在博客卡片与文章巨幕首屏展示）</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CoverPickerButton onSelect={(url) => setCover(url)} />
+                <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{uploading ? '上传中...' : '本地上传'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Hero 无框沉浸标题区 */}
           <div className="p-4 sm:p-6 rounded-2xl bg-card border border-border shadow-sm space-y-3">
             <input

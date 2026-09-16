@@ -50,7 +50,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     public PageResult<PostListVO> getPublishedPosts(Long page, Long pageSize, String categorySlug, String tagSlug, String keyword, String lang, String maturity) {
         LambdaQueryWrapper<Post> wrapper = new LambdaQueryWrapper<Post>()
                 .eq(Post::getStatus, "PUBLISHED")
-                .le(Post::getPublishedAt, LocalDateTime.now());
+                .le(Post::getPublishedAt, LocalDateTime.now().plusMinutes(1));
 
         if (StringUtils.hasText(lang)) {
             wrapper.eq(Post::getLang, lang.trim().toLowerCase());

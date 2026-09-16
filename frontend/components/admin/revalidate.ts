@@ -4,7 +4,7 @@
 
 import { readAuthToken } from '@/lib/storage-keys';
 
-export async function triggerRevalidate(paths: string | string[]): Promise<void> {
+export async function triggerRevalidate(paths: string | string[], tag?: string): Promise<void> {
   const pathList = Array.isArray(paths) ? paths : [paths];
   const token = typeof window !== 'undefined' ? readAuthToken() : '';
 
@@ -12,7 +12,8 @@ export async function triggerRevalidate(paths: string | string[]): Promise<void>
 
   for (const p of pathList) {
     try {
-      const url = `/api/revalidate?path=${encodeURIComponent(p)}`;
+      const effectiveTag = tag || (p.includes('blog') || p.includes('post') || p === '/' ? 'posts' : undefined);
+      const url = `/api/revalidate?path=${encodeURIComponent(p)}${effectiveTag ? `&tag=${encodeURIComponent(effectiveTag)}` : ''}`;
       const headers: Record<string, string> = {
         'x-revalidate-secret': secret,
         'Content-Type': 'application/json',
@@ -24,9 +25,9 @@ export async function triggerRevalidate(paths: string | string[]): Promise<void>
       await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ path: p }),
+        body: JSON.stringify({ path: p, tag: effectiveTag }),
       });
-      console.info(`[ISR Revalidate] Path ${p} triggered successfully.`);
+      console.info(`[ISR Revalidate] Path ${p} (tag: ${effectiveTag}) triggered successfully.`);
     } catch (err) {
       console.warn(`[ISR Revalidate] Warning when revalidating ${p}:`, err);
     }

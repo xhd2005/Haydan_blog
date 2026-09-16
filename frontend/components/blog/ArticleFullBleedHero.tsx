@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { SafeImage } from '@/components/SafeImage';
 import { StardateBadge } from '@/components/ui/StardateBadge';
 import { Post } from '@/lib/types';
+import { normalizeMediaUrl } from '@/lib/media-url';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -36,14 +37,16 @@ export function ArticleFullBleedHero({
   formattedDate,
   translations: t,
 }: ArticleFullBleedHeroProps) {
+  const coverUrl = normalizeMediaUrl(post.cover);
+
   return (
     <section className="relative w-full min-h-[540px] sm:min-h-[640px] lg:min-h-[720px] flex flex-col justify-center overflow-hidden pt-36 sm:pt-44 lg:pt-48 pb-20 sm:pb-28">
       {/* 1. 100vw 全幅高清封面背景层 */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        {post.cover ? (
+        {coverUrl ? (
           <div className="relative w-full h-full">
             <SafeImage
-              src={post.cover}
+              src={coverUrl}
               alt={post.title}
               containerClassName="w-full h-full"
               className="w-full h-full object-cover filter brightness-[0.88] dark:brightness-[0.62] saturate-[1.08] scale-105"

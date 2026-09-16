@@ -1,0 +1,70 @@
+/**
+ * 全站统一媒体 URL 规范化与类型识别工具库 (AGENTS.md 铁律 5: 云端对象存储优先)
+ */
+
+const PUBLIC_MINIO_DEFAULT = 'http://49.233.166.212:9000';
+
+/**
+ * 规范化媒体资产 URL
+ * 1. 自动将容器内网主机名 (如 1Panel-minio-nnF3:9000) 映射为当前客户端可访问的公网 MinIO 地址；
+ * 2. 避免客户端浏览器因解析不了内网 Docker DNS 产生 ERR_NAME_NOT_RESOLVED 黑屏；
+ * 3. 自动将开发期残留的 localhost:9000 在外部访问时替换为真实服务器 IP。
+ */
+export function normalizeMediaUrl(url?: string | null): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  let publicBase = process.env.NEXT_PUBLIC_MINIO_URL || PUBLIC_MINIO_DEFAULT;
+
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+    const host = window.location.hostname;
+    // 如果当前是通过公网 IP 或域名访问，优先取当前域名/IP的 9000 端口
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      publicBase = `http://${host}:9000`;
+    }
+  }
+
+  // 1. 匹配 1Panel-minio-nnF3:9000 (容器主机名)
+  if (trimmed.includes('1Panel-minio-nnF3:9000')) {
+    return trimmed.replace(/http:\/\/1Panel-minio-nnF3:9000/g, publicBase);
+  }
+
+  // 2. 客户端外部访问时匹配 localhost:9000 或 127.0.0.1:9000
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    if (trimmed.includes('localhost:9000')) {
+      return trimmed.replace(/http:\/\/localhost:9000/g, publicBase);
+    }
+    if (trimmed.includes('127.0.0.1:9000')) {
+      return trimmed.replace(/http:\/\/127\.0\.0\.1:9000/g, publicBase);
+    }
+  }
+
+  // 3. 海外 images.unsplash.com 外链全自动接入 Cloudflare 边缘 WebP 压缩镜像加速 (秒开防卡顿)
+  if (trimmed.startsWith('https://images.unsplash.com/') || trimmed.startsWith('http://images.unsplash.com/')) {
+    const rawClean = trimmed.replace(/^http:\/\//, 'https://');
+    return `https://wsrv.nl/?url=${encodeURIComponent(rawClean)}&output=webp&q=80`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * 判断媒体是否为图片
+ */
+export function isImageMedia(mimeType?: string | null, url?: string | null): boolean {
+  if (mimeType && mimeType.startsWith('image/')) return true;
+  if (!url) return false;
+  const cleanUrl = url.split('?')[0].toLowerCase();
+  return /\.(png|jpe?g|webp|gif|svg|avif|bmp|ico)$/.test(cleanUrl);
+}
+
+/**
+ * 判断媒体是否为视频
+ */
+export function isVideoMedia(mimeType?: string | null, url?: string | null): boolean {
+  if (mimeType && mimeType.startsWith('video/')) return true;
+  if (!url) return false;
+  const cleanUrl = url.split('?')[0].toLowerCase();
+  return /\.(mp4|webm|ogg|mov|m4v)$/.test(cleanUrl);
+}

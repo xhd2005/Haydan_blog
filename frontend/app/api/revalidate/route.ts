@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import crypto from 'crypto';
 
 const REVALIDATE_SECRET = process.env.REVALIDATE_SECRET || 'isr-secret-token-2026';
@@ -81,16 +81,33 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const path = searchParams.get('path');
+  const tag = searchParams.get('tag');
 
-  if (!path) {
+  if (!path && !tag) {
     return NextResponse.json(
-      { code: 400, message: '缺少 path 参数，无法执行 ISR 缓存刷新' },
+      { code: 400, message: '缺少 path 或 tag 参数，无法执行 ISR 缓存刷新' },
       { status: 400 }
     );
   }
 
   try {
-    revalidatePath(path);
+    if (tag) {
+      revalidateTag(tag);
+    }
+    if (path) {
+      if (path === 'layout' || path === 'all') {
+        revalidatePath('/', 'layout');
+      } else {
+        revalidatePath(path);
+        // 如果刷新了博客或主页，级联刷新 posts 标签与 layout 树
+        if (path.includes('blog') || path === '/' || path.includes('post')) {
+          try {
+            revalidateTag('posts');
+            revalidatePath('/', 'layout');
+          } catch {}
+        }
+      }
+    }
     const now = Date.now();
     return NextResponse.json({
       code: 200,
@@ -98,16 +115,13 @@ export async function GET(request: NextRequest) {
       data: {
         revalidated: true,
         path,
+        tag,
         timestamp: now,
       },
-      revalidated: true,
-      path,
-      timestamp: now,
-      now,
     });
   } catch (err: any) {
     return NextResponse.json(
-      { code: 500, message: 'Error revalidating path', error: err.message },
+      { code: 500, message: 'Error revalidating', error: err.message },
       { status: 500 }
     );
   }
@@ -124,17 +138,34 @@ export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const queryPath = searchParams.get('path');
+    const queryTag = searchParams.get('tag');
     const body = await request.json().catch(() => ({}));
     const path = queryPath || body?.path;
+    const tag = queryTag || body?.tag;
 
-    if (!path) {
+    if (!path && !tag) {
       return NextResponse.json(
-        { code: 400, message: '缺少 path 参数，无法执行 ISR 缓存刷新' },
+        { code: 400, message: '缺少 path 或 tag 参数，无法执行 ISR 缓存刷新' },
         { status: 400 }
       );
     }
 
-    revalidatePath(path);
+    if (tag) {
+      revalidateTag(tag);
+    }
+    if (path) {
+      if (path === 'layout' || path === 'all') {
+        revalidatePath('/', 'layout');
+      } else {
+        revalidatePath(path);
+        if (path.includes('blog') || path === '/' || path.includes('post')) {
+          try {
+            revalidateTag('posts');
+            revalidatePath('/', 'layout');
+          } catch {}
+        }
+      }
+    }
     const now = Date.now();
     return NextResponse.json({
       code: 200,
@@ -142,16 +173,13 @@ export async function POST(request: NextRequest) {
       data: {
         revalidated: true,
         path,
+        tag,
         timestamp: now,
       },
-      revalidated: true,
-      path,
-      timestamp: now,
-      now,
     });
   } catch (err: any) {
     return NextResponse.json(
-      { code: 500, message: 'Error revalidating path', error: err.message },
+      { code: 500, message: 'Error revalidating', error: err.message },
       { status: 500 }
     );
   }
