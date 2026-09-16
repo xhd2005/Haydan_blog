@@ -35,7 +35,6 @@ import java.util.UUID;
 public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements MediaService {
 
     private final StorageFactory storageFactory;
-    private final MinioStorageServiceImpl minioStorageService;
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             ".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".webm"
@@ -100,11 +99,24 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
             }
         }
 
+        String resolvedMimeType = file.getContentType();
+        if (!StringUtils.hasText(resolvedMimeType)) {
+            resolvedMimeType = switch (ext) {
+                case ".jpg", ".jpeg" -> "image/jpeg";
+                case ".png" -> "image/png";
+                case ".webp" -> "image/webp";
+                case ".gif" -> "image/gif";
+                case ".mp4" -> "video/mp4";
+                case ".webm" -> "video/webm";
+                default -> "application/octet-stream";
+            };
+        }
+
         Media media = Media.builder()
                 .filename(originalFilename)
                 .objectKey(objectKey)
                 .url(accessUrl)
-                .mimeType(file.getContentType())
+                .mimeType(resolvedMimeType)
                 .size(file.getSize())
                 .width(width)
                 .height(height)
@@ -161,8 +173,20 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
         String newFilename = UUID.randomUUID().toString().replace("-", "") + ext;
         String objectKey = datePath + "/" + newFilename;
 
-        String uploadUrl = minioStorageService.generatePresignedUploadUrl(objectKey, 3600);
-        String publicUrl = minioStorageService.getAccessUrl(objectKey);
+        StorageService storageService = storageFactory.getStorageService();
+        String uploadUrl = storageService.generatePresignedUploadUrl(objectKey, 3600);
+        String publicUrl = storageService.getAccessUrl(objectKey);
+
+        if (!StringUtils.hasText(uploadUrl)) {
+            // 本地存储或未配置云端直传时，返回 uploadUrl 为空通知前端走后端代理上传
+            return PresignedUploadResponse.builder()
+                    .uploadUrl(null)
+                    .objectKey(objectKey)
+                    .publicUrl(publicUrl)
+                    .storageType(storageService.getStorageType())
+                    .mediaId(null)
+                    .build();
+        }
 
         Media media = Media.builder()
                 .filename(originalFilename)
@@ -170,7 +194,7 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
                 .url(publicUrl)
                 .mimeType(request.getContentType())
                 .size(request.getSize() != null ? request.getSize() : 0L)
-                .storageType("minio")
+                .storageType(storageService.getStorageType())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -180,7 +204,7 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
                 .uploadUrl(uploadUrl)
                 .objectKey(objectKey)
                 .publicUrl(publicUrl)
-                .storageType("minio")
+                .storageType(storageService.getStorageType())
                 .mediaId(media.getId())
                 .build();
     }
@@ -281,10 +305,10 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
         Page<Media> mediaPage = page(new Page<>(page, pageSize), wrapper);
         List<Media> records = mediaPage.getRecords();
         try {
-            StorageService storageService = storageFactory.getStorageService();
             for (Media m : records) {
                 if (StringUtils.hasText(m.getObjectKey())) {
-                    String dynamicUrl = storageService.getAccessUrl(m.getObjectKey());
+                    StorageService targetService = storageFactory.getStorageService(m.getStorageType());
+                    String dynamicUrl = targetService.getAccessUrl(m.getObjectKey());
                     if (StringUtils.hasText(dynamicUrl)) {
                         m.setUrl(dynamicUrl);
                     }
@@ -301,8 +325,8 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
         Media media = getById(id);
         if (media != null) {
             try {
-                StorageService storageService = storageFactory.getStorageService();
-                storageService.delete(media.getObjectKey());
+                StorageService targetService = storageFactory.getStorageService(media.getStorageType());
+                targetService.delete(media.getObjectKey());
             } catch (Exception e) {
                 log.warn("物理删除文件异常: {}", e.getMessage());
             }

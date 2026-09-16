@@ -241,7 +241,7 @@ export default function AdminJourneyPage() {
     try {
       const res = await api.uploadMedia(file);
       setEditingJourney((prev) => (prev ? { ...prev, cover: res.url } : null));
-      toast.success('封面图片已成功上传至 MinIO');
+      toast.success('封面图片已成功上传至云端');
     } catch (err: any) {
       toast.error(err.message || '上传失败');
     } finally {
@@ -682,7 +682,7 @@ export default function AdminJourneyPage() {
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="font-medium text-foreground">封面图片 (MinIO / URL)</label>
+                  <label className="font-medium text-foreground">封面图片 (媒体库 / URL)</label>
                   <div className="flex items-center gap-2">
                     <CoverPickerButton
                       onSelect={(url) => setEditingJourney((prev) => (prev ? { ...prev, cover: url } : null))}
@@ -694,7 +694,7 @@ export default function AdminJourneyPage() {
                       className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-500 hover:text-blue-600 disabled:opacity-50 cursor-pointer"
                     >
                       {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                      <span>上传到 MinIO</span>
+                      <span>本地上传</span>
                     </button>
                   </div>
                   <input

@@ -50,7 +50,7 @@ export default function AdminSettingsPage() {
     { id: 'all', label: '全部设置卡片', icon: Layers },
     { id: 'appearance', label: '外观与视觉', icon: Sparkles },
     { id: 'ai', label: 'AI 外脑与集群', icon: Bot },
-    { id: 'storage', label: '对象存储 MinIO', icon: HardDrive },
+    { id: 'storage', label: '云端对象存储', icon: HardDrive },
     { id: 'security', label: '安全合规与凭据', icon: ShieldCheck },
     { id: 'backup', label: '数据备份与导出', icon: Database },
     { id: 'ops', label: '运维重构与 SEO', icon: Wrench },

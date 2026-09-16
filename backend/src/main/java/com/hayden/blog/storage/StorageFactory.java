@@ -95,6 +95,22 @@ public class StorageFactory {
     }
 
     /**
+     * 根据指定的存储引擎类型名称动态获取对应的实现类
+     * 消除跨引擎水合时的混淆与 404
+     */
+    public StorageService getStorageService(String storageType) {
+        if (!StringUtils.hasText(storageType)) {
+            return getStorageService();
+        }
+        String type = storageType.trim().toLowerCase();
+        return switch (type) {
+            case "oss", "aliyun_oss" -> aliyunOssStorageService;
+            case "minio" -> minioStorageService;
+            default -> localStorageService;
+        };
+    }
+
+    /**
      * Java 25 模式匹配 switch 针对 Sealed Interface 封闭类型的穷尽性分发
      */
     public String describeStorageBackend(StorageService service) {

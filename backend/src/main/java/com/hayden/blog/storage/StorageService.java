@@ -55,4 +55,11 @@ public sealed interface StorageService permits LocalStorageServiceImpl, MinioSto
      * @return 是否正常可用
      */
     boolean testConnection();
+
+    /**
+     * 生成预签名直接上传 URL (若存储策略不支持直传则默认返回 null，平滑回退代理上传)
+     */
+    default String generatePresignedUploadUrl(String objectKey, int expirySeconds) {
+        return null;
+    }
 }

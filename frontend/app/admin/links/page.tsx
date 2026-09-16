@@ -298,7 +298,7 @@ export default function AdminLinksPage() {
     try {
       const res = await api.uploadMedia(file);
       setAvatar(res.url);
-      toast.success('头像图片已上传至 MinIO');
+      toast.success('头像图片已上传至云端');
     } catch (err: any) {
       toast.error(err.message || '上传头像失败');
     } finally {
@@ -710,7 +710,7 @@ export default function AdminLinksPage() {
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="font-medium text-foreground">站点图标 / 站长头像 (MinIO / URL)</label>
+                  <label className="font-medium text-foreground">站点图标 / 站长头像 (媒体库 / URL)</label>
                   <button
                     type="button"
                     disabled={uploadingAvatar}

@@ -173,7 +173,7 @@ function ResumeCreationsWorkbench({ defaultTab = 'projects' }: ResumeCreationsWo
     try {
       const res = await api.uploadMedia(file);
       setEditingProject((prev) => (prev ? { ...prev, cover: res.url } : null));
-      toast.success('封面图片已成功上传至 MinIO');
+      toast.success('封面图片已成功上传至云端');
     } catch (err: any) {
       toast.error(err.message || '封面上传失败');
     } finally {
@@ -919,7 +919,7 @@ function ResumeCreationsWorkbench({ defaultTab = 'projects' }: ResumeCreationsWo
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="font-semibold text-slate-700 dark:text-zinc-300">封面图片 (MinIO / URL)</label>
+                    <label className="font-semibold text-slate-700 dark:text-zinc-300">封面图片 (媒体库 / URL)</label>
                     <div className="flex items-center gap-2">
                       <CoverPickerButton
                         onSelect={(url) => setEditingProject((prev) => (prev ? { ...prev, cover: url } : null))}

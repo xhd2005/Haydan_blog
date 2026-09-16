@@ -67,6 +67,7 @@ export default function AdminDashboardPage() {
   const [batchActionLoading, setBatchActionLoading] = useState(false);
 
   // 基础设施探活雷达状态
+  const [storageName, setStorageName] = useState('云端对象存储');
   const [minioTelemetry, setMinioTelemetry] = useState<TelemetryState>({ status: 'testing' });
   const [aiTelemetry, setAiTelemetry] = useState<TelemetryState>({ status: 'testing' });
   const [dbTelemetry, setDbTelemetry] = useState<TelemetryState>({ status: 'testing' });
@@ -90,17 +91,24 @@ export default function AdminDashboardPage() {
         setDbTelemetry({ status: 'offline', message: err?.message || '数据库连接异常' });
       });
 
-    // 2. MinIO 存储探活
-    api.testMinio()
-      .then((res) => {
+    // 2. 云端对象存储探活 (动态适配 OSS / MinIO)
+    api.getSettings()
+      .then(async (settings) => {
+        const isOss = settings?.storageType === 'oss' || settings?.storageType === 'aliyun_oss';
+        setStorageName(isOss ? '阿里云 OSS 存储' : settings?.storageType === 'local' ? '本地持久化存储' : 'MinIO 对象存储');
+        if (settings?.storageType === 'local') {
+          setMinioTelemetry({ status: 'online', latencyMs: 1, message: '本地磁盘目录正常' });
+          return;
+        }
+        const res = isOss ? await api.testOss() : await api.testMinio();
         setMinioTelemetry({
           status: res.success ? 'online' : 'offline',
           latencyMs: res.latencyMs || 22,
-          message: res.success ? `Bucket 正常 [${res.bucketExists ? 'Ready' : 'Created'}]` : res.message,
+          message: res.success ? `存储空间正常 [${res.bucketExists ? 'Ready' : 'Connected'}]` : res.message,
         });
       })
       .catch((err) => {
-        setMinioTelemetry({ status: 'offline', message: err?.message || 'MinIO 端点无法直连' });
+        setMinioTelemetry({ status: 'offline', message: err?.message || '存储端点无法直连' });
       });
 
     // 3. AI 智能体推理集群探活
@@ -532,7 +540,7 @@ export default function AdminDashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
                     <HardDrive className="w-3.5 h-3.5 text-cyan-500" />
-                    <span>MinIO 对象存储</span>
+                    <span>{storageName}</span>
                   </div>
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono border ${

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Media } from '@/lib/types';
 import { toast } from '@/lib/toast';
@@ -14,8 +14,9 @@ import {
   ChevronRight,
   CheckCircle2,
   HardDrive,
+  Upload,
 } from 'lucide-react';
-import { normalizeMediaUrl, isImageMedia } from '@/lib/media-url';
+import { normalizeMediaUrl, isImageMedia, isVideoMedia } from '@/lib/media-url';
 
 interface MediaPickerModalProps {
   open: boolean;
@@ -28,31 +29,40 @@ interface MediaPickerModalProps {
 }
 
 /**
- * 媒体资产库选择器 (AGENTS.md 铁律 5: 云端对象存储优先)
- * 从 MinIO 媒体库中检索并一键选用已上传资产，消除手动粘贴直链的断点。
+ * 媒体资产库选择器 (AGENTS.md 铁律 2 & 5: 真实数据驱动 + 云端对象存储优先)
+ * 检索并一键选用云端资产，支持弹窗内就地上传回填。
  */
 export function MediaPickerModal({
   open,
   onClose,
   onSelect,
   mimePrefix = 'video/',
-  title = '从媒体资产库选择视频',
+  title = '从媒体资产库选择',
 }: MediaPickerModalProps) {
   const [items, setItems] = useState<Media[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pageSize = 12;
 
   const loadMedia = useCallback(async (targetPage: number, kw: string) => {
     setLoading(true);
     try {
       const res = await api.getMedia({ page: targetPage, pageSize, keyword: kw || undefined });
-      const records = (res?.records || []).filter((m) =>
-        mimePrefix ? (m.mimeType || '').startsWith(mimePrefix) : true
-      );
+      const records = (res?.records || []).filter((m) => {
+        if (!mimePrefix) return true;
+        if (mimePrefix.startsWith('image')) {
+          return isImageMedia(m.mimeType, m.filename || m.url);
+        }
+        if (mimePrefix.startsWith('video')) {
+          return isVideoMedia(m.mimeType, m.filename || m.url);
+        }
+        return (m.mimeType || '').startsWith(mimePrefix);
+      });
       setItems(records);
       setTotal(res?.total || 0);
     } catch (err: any) {
@@ -95,6 +105,33 @@ export function MediaPickerModal({
     return () => window.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
 
+  // 弹窗内就地上传新文件
+  const handleInPlaceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 200 * 1024 * 1024) {
+      toast.error(`文件 "${file.name}" 超过 200MB 限制`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const newMedia = await api.uploadMedia(file);
+      const normalizedUrl = normalizeMediaUrl(newMedia.url);
+      const createdItem: Media = { ...newMedia, url: normalizedUrl };
+      setItems((prev) => [createdItem, ...prev]);
+      setTotal((prev) => prev + 1);
+      setSelectedId(newMedia.id);
+      toast.success(`上传成功「${newMedia.filename}」！已自动选用`);
+      onSelect(createdItem);
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || '上传失败，请重试');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   if (!open) return null;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -126,7 +163,7 @@ export function MediaPickerModal({
             <div>
               <h3 className="text-sm font-bold text-foreground">{title}</h3>
               <p className="text-[11px] text-muted-foreground font-mono">
-                MinIO 云端资产 · {mimePrefix.replace('/', '')} · 共 {total} 项
+                云端媒体资产 · {mimePrefix.replace('/', '')} · 共 {total} 项
               </p>
             </div>
           </div>
@@ -140,9 +177,9 @@ export function MediaPickerModal({
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-5 py-3 border-b border-slate-200/70 dark:border-white/[0.06]">
-          <div className="relative">
+        {/* Search & In-place Upload */}
+        <div className="px-5 py-3 border-b border-slate-200/70 dark:border-white/[0.06] flex items-center gap-3">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
@@ -151,6 +188,37 @@ export function MediaPickerModal({
               placeholder="搜索文件名 / 对象键..."
               className="w-full pl-9 pr-3 py-2 rounded-xl bg-secondary/70 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
             />
+          </div>
+
+          {/* 就地本地上传并选用按钮 */}
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={mimePrefix.startsWith('image') ? 'image/*' : mimePrefix.startsWith('video') ? 'video/*' : '*/*'}
+              onChange={handleInPlaceUpload}
+              className="hidden"
+              disabled={uploading}
+            />
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="本地选择文件并直接上传回填"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>上传中...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>本地上传并选用</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -237,8 +305,8 @@ export function MediaPickerModal({
                 {keyword
                   ? '未找到匹配的云端资产'
                   : mimePrefix.startsWith('image')
-                  ? '媒体库暂无图片资产，请先在媒体中心上传'
-                  : '媒体库暂无视频资产，请先在媒体中心上传'}
+                  ? '媒体资产库暂无图片，可直接点击右上角「本地上传并选用」快速添加'
+                  : '媒体资产库暂无视频，可直接点击右上角「本地上传并选用」快速添加'}
               </span>
             </div>
           )}

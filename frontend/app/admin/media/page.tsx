@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { Media } from '@/lib/types';
+import { Media, SiteSetting } from '@/lib/types';
 import { toast } from '@/lib/toast';
 import { SafeImage } from '@/components/SafeImage';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
@@ -53,20 +53,22 @@ interface UploadTask {
   errorMsg?: string;
 }
 
-export default function AdminMediaPage() {
+export default function MediaAdminPage() {
   const [mediaList, setMediaList] = useState<Media[]>([]);
   const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = 24;
+  const [pageSize] = useState(12);
 
-  // 搜索与多维筛选状态
-  const [searchKeyword, setSearchKeyword] = useState('');
+  // 视图模式：网格 (grid) 或 列表 (list)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // 多维筛选维度
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'IMAGE' | 'VIDEO'>('ALL');
   const [dateFilter, setDateFilter] = useState<'ALL' | '7DAYS' | '30DAYS' | 'YEAR'>('ALL');
   const [sizeFilter, setSizeFilter] = useState<'ALL' | 'LT_1MB' | '1MB_5MB' | 'GT_5MB'>('ALL');
   const [sortBy, setSortBy] = useState<'NEWEST' | 'OLDEST' | 'SIZE_DESC' | 'NAME'>('NEWEST');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [loading, setLoading] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   // 拖拽与批量上传任务队列状态
   const [dragActive, setDragActive] = useState(false);
@@ -76,9 +78,10 @@ export default function AdminMediaPage() {
   const isProcessingQueue = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 连通性测试状态
-  const [testingMinio, setTestingMinio] = useState(false);
-  const [minioStatus, setMinioStatus] = useState<{ success?: boolean; message?: string; latencyMs?: number } | null>(null);
+  // 存储后端动态配置与连通性测试
+  const [settings, setSettings] = useState<SiteSetting | null>(null);
+  const [testingStorage, setTestingStorage] = useState(false);
+  const [storageStatus, setStorageStatus] = useState<{ success?: boolean; message?: string; latencyMs?: number } | null>(null);
 
   // 灯箱/大图视频预览 Modal
   const [previewItem, setPreviewItem] = useState<Media | null>(null);
@@ -86,6 +89,20 @@ export default function AdminMediaPage() {
   // 删除确认 Modal
   const [deletingItem, setDeletingItem] = useState<Media | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  useEffect(() => {
+    api.getSettings().then(setSettings).catch(() => {});
+  }, []);
+
+  const storageType = (settings?.storageType || 'oss').toLowerCase();
+  const isOss = storageType === 'oss' || storageType === 'aliyun_oss';
+  const isMinio = storageType === 'minio';
+  const isLocal = storageType === 'local';
+
+  const nodeTitle = isOss ? '阿里云 OSS 生产节点' : isMinio ? 'MinIO 对象存储节点' : '本地持久化存储';
+  const nodeEndpoint = isOss ? (settings?.ossEndpoint || 'oss-cn-beijing.aliyuncs.com') : isMinio ? (settings?.minioEndpoint || '49.233.166.212:9000') : '/app/uploads';
+  const bucketName = isOss ? (settings?.ossBucket || 'haydenblog') : isMinio ? (settings?.minioBucket || 'hayden-blog') : 'Local Disk';
+  const protocolName = isOss ? 'Aliyun OSS' : isMinio ? 'S3 兼容' : '本地磁盘';
 
   const fetchMedia = async () => {
     setLoading(true);
@@ -119,23 +136,23 @@ export default function AdminMediaPage() {
     fetchMedia();
   };
 
-  // 测试 MinIO 连通性
-  const handleTestMinio = async () => {
-    setTestingMinio(true);
-    setMinioStatus(null);
+  // 测试激活存储引擎的连通性
+  const handleTestStorage = async () => {
+    setTestingStorage(true);
+    setStorageStatus(null);
     try {
-      const res = await api.testMinio();
-      setMinioStatus(res);
+      const res = isOss ? await api.testOss() : await api.testMinio();
+      setStorageStatus(res);
       if (res.success) {
-        toast.success(`生产 MinIO 连通就绪！往返延迟: ${res.latencyMs || 0}ms`);
+        toast.success(`${nodeTitle}连通就绪！往返延迟: ${res.latencyMs || 0}ms`);
       } else {
-        toast.error(`MinIO 连通失败: ${res.message}`);
+        toast.error(`${nodeTitle}连通失败: ${res.message}`);
       }
     } catch (err: any) {
-      setMinioStatus({ success: false, message: err.message });
+      setStorageStatus({ success: false, message: err.message });
       toast.error(err.message || '连通性测试请求失败');
     } finally {
-      setTestingMinio(false);
+      setTestingStorage(false);
     }
   };
 
@@ -337,7 +354,7 @@ export default function AdminMediaPage() {
       {/* 统一规范头部 */}
       <AdminPageHeader
         title="媒体资产管理中心 (Media Hub)"
-        description="管理生产 MinIO 对象存储中心 (http://49.233.166.212:9000, 桶: hayden-blog) 与云端资产，支持 200MB 大视频与图片批量直传、多维筛选、列表/网格双视图与 CDN 直链。"
+        description="统一管理云端对象存储与媒体资产库，支持 200MB 大视频与图片批量直传、多维筛选、列表/网格双视图与 CDN 直链。"
         icon={HardDrive}
         badge={
           <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-mono text-xs font-semibold border border-cyan-500/20">
@@ -353,12 +370,12 @@ export default function AdminMediaPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleTestMinio}
-              disabled={testingMinio}
+              onClick={handleTestStorage}
+              disabled={testingStorage}
               className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-foreground text-xs font-mono flex items-center gap-2 transition-colors cursor-pointer"
             >
-              {testingMinio ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5 text-cyan-500" />}
-              <span>{testingMinio ? '连通探测中...' : '测试 MinIO 连通性'}</span>
+              {testingStorage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5 text-cyan-500" />}
+              <span>{testingStorage ? '连通探测中...' : `测试 ${isOss ? '阿里云 OSS' : isMinio ? 'MinIO' : '本地存储'} 连通性`}</span>
             </button>
 
             <button
@@ -379,10 +396,10 @@ export default function AdminMediaPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-semibold text-foreground">MinIO 生产节点</span>
+              <span className="text-xs font-semibold text-foreground">{nodeTitle}</span>
             </div>
-            <p className="text-[11px] font-mono text-muted-foreground truncate max-w-[200px]">
-              49.233.166.212:9000
+            <p className="text-[11px] font-mono text-muted-foreground truncate max-w-[200px]" title={nodeEndpoint}>
+              {nodeEndpoint}
             </p>
           </div>
           <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-bold border border-emerald-500/20">
@@ -392,13 +409,13 @@ export default function AdminMediaPage() {
 
         <div className="p-4 rounded-2xl bg-card border border-border shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-foreground">默认存储桶 (Bucket)</span>
-            <p className="text-[11px] font-mono text-muted-foreground">
-              hayden-blog · 公开可读
+            <span className="text-xs font-semibold text-foreground">存储空间 (Bucket)</span>
+            <p className="text-[11px] font-mono text-muted-foreground truncate max-w-[200px]" title={bucketName}>
+              {bucketName} · 公开可读
             </p>
           </div>
           <div className="px-2.5 py-1 rounded-lg bg-secondary text-muted-foreground font-mono text-[10px]">
-            S3 协议
+            {protocolName}
           </div>
         </div>
 
@@ -416,20 +433,20 @@ export default function AdminMediaPage() {
       </div>
 
       {/* 连通探测响应指示 */}
-      {minioStatus && (
+      {storageStatus && (
         <div
           className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between ${
-            minioStatus.success
+            storageStatus.success
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
               : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
           }`}
         >
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{minioStatus.message || (minioStatus.success ? 'MinIO 生产节点探测就绪' : '探测握手失败')}</span>
+            <span>{storageStatus.message || (storageStatus.success ? `${nodeTitle}探测就绪` : '探测握手失败')}</span>
           </div>
-          {minioStatus.latencyMs !== undefined && (
-            <span className="font-mono text-[11px]">往返耗时: {minioStatus.latencyMs} ms</span>
+          {storageStatus.latencyMs !== undefined && (
+            <span className="font-mono text-[11px]">往返耗时: {storageStatus.latencyMs} ms</span>
           )}
         </div>
       )}
@@ -471,7 +488,7 @@ export default function AdminMediaPage() {
               : '点击选择或拖拽多个图片/视频文件至此处批量上传'}
           </h4>
           <p className="text-xs text-muted-foreground max-w-md mx-auto">
-            支持同时选中多张 JPG/PNG/WebP/GIF 图片与 MP4/WebM 视频，多任务队列并发直传生产 MinIO
+            支持同时选中多张 JPG/PNG/WebP/GIF 图片与 MP4/WebM 视频，多任务队列并发直传云端对象存储
           </p>
         </div>
       </div>
@@ -634,7 +651,7 @@ export default function AdminMediaPage() {
       {loading && mediaList.length === 0 ? (
         <div className="py-20 text-center space-y-3">
           <Loader2 className="w-8 h-8 mx-auto text-emerald-500 animate-spin" />
-          <p className="text-xs text-muted-foreground font-mono">Loading MinIO Cloud Assets...</p>
+          <p className="text-xs text-muted-foreground font-mono">Loading Cloud Assets...</p>
         </div>
       ) : filteredList.length === 0 ? (
         <div className="p-16 rounded-3xl bg-card border border-dashed border-border text-center space-y-3">
@@ -1004,7 +1021,7 @@ export default function AdminMediaPage() {
             </h3>
 
             <p className="text-muted-foreground leading-relaxed">
-              您确定要从生产 MinIO 对象存储中心永久删除资产{' '}
+              您确定要从云端对象存储中心永久删除资产{' '}
               <span className="font-semibold text-foreground font-mono">
                 "{deletingItem.filename}"
               </span>{' '}

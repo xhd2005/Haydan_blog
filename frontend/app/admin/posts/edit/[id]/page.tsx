@@ -585,6 +585,64 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
               </button>
             </div>
 
+            {/* 文章封面大图 (Cover Image) */}
+            <div className="space-y-2 p-3.5 rounded-2xl bg-secondary/40 border border-border/80">
+              <div className="flex items-center justify-between">
+                <label className="font-semibold text-foreground flex items-center gap-1.5 text-xs">
+                  <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>文章封面图片</span>
+                </label>
+                {cover && (
+                  <button
+                    type="button"
+                    onClick={() => setCover('')}
+                    className="text-[11px] text-rose-500 hover:text-rose-600 transition-colors"
+                  >
+                    移除封面
+                  </button>
+                )}
+              </div>
+
+              {cover ? (
+                <div className="relative aspect-video rounded-xl overflow-hidden border border-border/80 bg-neutral-900 group">
+                  <img
+                    src={normalizeMediaUrl(cover)}
+                    alt="Cover Preview"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/cover-placeholder.svg';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <CoverPickerButton onSelect={(url) => setCover(url)} />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-border bg-background/50 text-center gap-1.5">
+                  <ImageIcon className="w-6 h-6 text-muted-foreground/40" />
+                  <span className="text-[11px] text-muted-foreground">尚未设置封面大图</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-1">
+                <CoverPickerButton
+                  onSelect={(url) => setCover(url)}
+                  className="flex-1 justify-center py-2"
+                />
+                <label className="cursor-pointer flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{uploading ? '上传中...' : '本地上传'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            </div>
+
             {/* 数字花园成熟度 (Digital Garden Maturity) */}
             <div className="space-y-1.5">
               <label className="font-medium text-foreground flex items-center gap-1.5">

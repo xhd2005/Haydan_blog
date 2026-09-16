@@ -34,6 +34,13 @@ export function SafeImage({
     setImgSrc(normalized);
     setLoaded(false);
     setError(false);
+
+    // 3.5秒超时安全网：若网络延迟较大或客户端未触发 onLoad，强制平滑展现防止永久骨架屏白屏
+    const timer = setTimeout(() => {
+      setLoaded(true);
+    }, 3500);
+
+    return () => clearTimeout(timer);
   }, [src, fallbackSrc]);
 
   const getAspectClass = () => {
@@ -64,9 +71,9 @@ export function SafeImage({
     <div
       className={`relative overflow-hidden bg-secondary/80 dark:bg-zinc-800/80 ${getAspectClass()} ${containerClassName}`}
     >
-      {/* 骨架屏 Skeleton 脉冲占位（防止图片解码前发生布局抖动 CLS） */}
+      {/* 骨架屏 Skeleton 脉冲占位 */}
       {!loaded && !error && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-secondary/60 dark:bg-zinc-800/60 animate-pulse">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-secondary/40 dark:bg-zinc-800/40 pointer-events-none transition-opacity duration-300">
           <div className="w-full h-full bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
         </div>
       )}
@@ -83,10 +90,11 @@ export function SafeImage({
           alt={alt}
           loading="lazy"
           decoding="async"
+          referrerPolicy="no-referrer"
           onLoad={() => setLoaded(true)}
           onError={handleError}
-          className={`w-full h-full object-cover transition-all duration-500 ease-out ${
-            loaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-[1.02] blur-sm'
+          className={`w-full h-full object-cover transition-all duration-300 ease-out ${
+            loaded ? 'opacity-100 scale-100 blur-0' : 'opacity-80 scale-[1.01] blur-[1px]'
           } ${className}`}
           {...props}
         />

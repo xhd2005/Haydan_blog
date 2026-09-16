@@ -25,17 +25,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
     secret = ""
 
     def do_GET(self):
-        msg = "Hayden Blog Gitee Webhook Server is running.\n".encode('utf-8')
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain; charset=utf-8')
-        self.send_header('Content-Length', str(len(msg)))
         self.end_headers()
-        self.wfile.write(msg)
+        self.wfile.write("Hayden Blog Gitee Webhook Server is running.\n".encode('utf-8'))
 
     def do_POST(self):
         if self.path != '/webhook' and self.path != '/':
             self.send_response(404)
-            self.send_header('Content-Length', '0')
             self.end_headers()
             return
 
@@ -48,12 +45,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
         if self.secret and gitee_token != self.secret:
             print(f"{LOG_PREFIX} 警告：Webhook 密码鉴权失败，拒绝执行")
-            resp = json.dumps({"success": False, "message": "Invalid token"}).encode('utf-8')
             self.send_response(403)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(resp)))
             self.end_headers()
-            self.wfile.write(resp)
+            self.wfile.write(json.dumps({"success": False, "message": "Invalid token"}).encode('utf-8'))
             return
 
         # 解析 Payload
@@ -66,16 +61,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
         user_name = payload.get('user_name', 'Unknown')
         print(f"{LOG_PREFIX} 收到 Gitee 事件 [{gitee_event}], 分支: [{ref}], 提交者: [{user_name}]")
 
-        # 针对 Gitee 的 Ping 测试事件或常规 Push
-        if gitee_event == 'Ping' or gitee_event == 'ping':
-            resp = json.dumps({"success": True, "message": "Pong! Webhook connection verified successfully."}).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(resp)))
-            self.end_headers()
-            self.wfile.write(resp)
-            return
-
         # 仅针对 main 或 master 分支触发自动化更新
         if 'master' in ref or 'main' in ref or not ref:
             print(f"{LOG_PREFIX} 命中主分支变更，正在后台启动 Docker 增量构建...")
@@ -84,12 +69,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
         else:
             message = f"Ignored branch {ref}"
 
-        resp = json.dumps({"success": True, "message": message}).encode('utf-8')
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', str(len(resp)))
         self.end_headers()
-        self.wfile.write(resp)
+        self.wfile.write(json.dumps({"success": True, "message": message}).encode('utf-8'))
 
     def run_deploy(self):
         deploy_cmd = f"""

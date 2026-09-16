@@ -19,9 +19,10 @@ export function normalizeMediaUrl(url?: string | null): string {
 
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
-    // 如果当前是通过公网 IP 或域名访问，优先取当前域名/IP的 9000 端口
+    const protocol = window.location.protocol || 'http:';
+    // 如果当前是通过公网 IP 或域名访问，优先取当前域名/IP的 9000 端口并保持同协议
     if (host !== 'localhost' && host !== '127.0.0.1') {
-      publicBase = `http://${host}:9000`;
+      publicBase = `${protocol}//${host}:9000`;
     }
   }
 
@@ -40,31 +41,35 @@ export function normalizeMediaUrl(url?: string | null): string {
     }
   }
 
-  // 3. 海外 images.unsplash.com 外链全自动接入 Cloudflare 边缘 WebP 压缩镜像加速 (秒开防卡顿)
+  // 3. 针对 Unsplash 原生 CDN 进行参数轻量化加速 (直连官方极速 CDN，杜绝国外被墙代理 wsrv.nl)
   if (trimmed.startsWith('https://images.unsplash.com/') || trimmed.startsWith('http://images.unsplash.com/')) {
     const rawClean = trimmed.replace(/^http:\/\//, 'https://');
-    return `https://wsrv.nl/?url=${encodeURIComponent(rawClean)}&output=webp&q=80`;
+    if (!rawClean.includes('auto=format')) {
+      const sep = rawClean.includes('?') ? '&' : '?';
+      return `${rawClean}${sep}auto=format&fit=crop&w=1200&q=80`;
+    }
+    return rawClean;
   }
 
   return trimmed;
 }
 
 /**
- * 判断媒体是否为图片
+ * 判断媒体是否为图片 (MIME + 后缀名双重智能识别)
  */
 export function isImageMedia(mimeType?: string | null, url?: string | null): boolean {
-  if (mimeType && mimeType.startsWith('image/')) return true;
+  if (mimeType && mimeType.toLowerCase().startsWith('image/')) return true;
   if (!url) return false;
-  const cleanUrl = url.split('?')[0].toLowerCase();
-  return /\.(png|jpe?g|webp|gif|svg|avif|bmp|ico)$/.test(cleanUrl);
+  const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();
+  return /\.(png|jpe?g|webp|gif|svg|avif|bmp|ico|tiff?)$/.test(cleanUrl);
 }
 
 /**
- * 判断媒体是否为视频
+ * 判断媒体是否为视频 (MIME + 后缀名双重智能识别)
  */
 export function isVideoMedia(mimeType?: string | null, url?: string | null): boolean {
-  if (mimeType && mimeType.startsWith('video/')) return true;
+  if (mimeType && mimeType.toLowerCase().startsWith('video/')) return true;
   if (!url) return false;
-  const cleanUrl = url.split('?')[0].toLowerCase();
-  return /\.(mp4|webm|ogg|mov|m4v)$/.test(cleanUrl);
+  const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();
+  return /\.(mp4|webm|ogg|mov|m4v|avi|mkv|flv)$/.test(cleanUrl);
 }
