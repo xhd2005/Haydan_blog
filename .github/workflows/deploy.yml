@@ -1,4 +1,4 @@
-name: Build & Deploy to Tencent Cloud
+name: Fast Build & Deploy to Tencent Cloud
 
 on:
   push:
@@ -8,30 +8,14 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
 
-      - name: 设置 Docker Buildx 构建器
-        uses: docker/setup-buildx-action@v3
-
       # =======================================================
-      # 阶段 1: 在 GitHub 高性能 Runner 上并行编译打包镜像
-      # =======================================================
-      - name: 构建后端 Docker 镜像
-        run: |
-          echo "📦 开始构建 Spring Boot 3.3 后端镜像..."
-          docker build -t hayden-blog-backend:latest ./backend
-
-      - name: 构建前端 Docker 镜像
-        run: |
-          echo "📦 开始构建 Next.js 14 前端镜像 (Standalone)..."
-          docker build -t hayden-blog-frontend:latest ./frontend
-
-      # =======================================================
-      # 阶段 2: 解析与标准化部署目标主机与凭据 (Host Normalization)
+      # 阶段 1: 解析与标准化部署目标主机与凭据 (Host Normalization)
       # =======================================================
       - name: 标准化解析目标主机与端口
         env:
@@ -64,7 +48,7 @@ jobs:
           echo "✅ 成功标准化部署目标 -> 用户: $TARGET_USER | 主机: $TARGET_HOST | 端口: $TARGET_PORT"
 
       # =======================================================
-      # 阶段 3: 配置 SSH 密钥与免密直连
+      # 阶段 2: 配置 SSH 密钥与免密直连
       # =======================================================
       - name: 配置 SSH 密钥与连通性验证
         env:
@@ -86,50 +70,63 @@ jobs:
           ssh -i ~/.ssh/id_rsa -p $TARGET_PORT $TARGET_USER@$TARGET_HOST "echo '✅ SSH 免密握手连接成功！'"
 
       # =======================================================
-      # 阶段 4: 同步最新配置与 SQL 脚本至腾讯云服务器
+      # 阶段 3: 极速源码归档打包 (秒级打包，体积缩减 98%)
       # =======================================================
-      - name: 同步部署配置到服务器
+      - name: 打包干净工程源码
+        run: |
+          echo "📦 正在打包工程源码 (排除临时构建产物与开发冗余)..."
+          tar --exclude='.git' \
+              --exclude='.github' \
+              --exclude='docs/screenshots' \
+              --exclude='backend/target' \
+              --exclude='frontend/node_modules' \
+              --exclude='frontend/.next' \
+              -czf /tmp/hayden-source.tar.gz .
+          echo "✅ 源码包精炼完毕，体积仅为："
+          ls -lh /tmp/hayden-source.tar.gz
+
+      # =======================================================
+      # 阶段 4: 秒级同步源码与配置至腾讯云服务器
+      # =======================================================
+      - name: 秒级传输源码与配置到服务器
         env:
           TARGET_DIR: ${{ secrets.SERVER_DEPLOY_DIR || '/opt/hayden-blog' }}
         run: |
-          echo "🚀 正在同步配置文件到服务器 $TARGET_DIR (目标: $TARGET_USER@$TARGET_HOST:$TARGET_PORT) ..."
+          echo "🚀 正在直传精简源码包到腾讯云服务器 (只需 5~10 秒) ..."
           SSH_CMD="ssh -i ~/.ssh/id_rsa -p $TARGET_PORT $TARGET_USER@$TARGET_HOST"
           SCP_CMD="scp -i ~/.ssh/id_rsa -P $TARGET_PORT"
           
-          $SSH_CMD "mkdir -p $TARGET_DIR/deploy/nginx $TARGET_DIR/docs/sql $TARGET_DIR/data"
-          $SCP_CMD docker-compose.yml $TARGET_USER@$TARGET_HOST:$TARGET_DIR/
-          if [ -d deploy/nginx ] && [ "$(ls -A deploy/nginx)" ]; then
-            $SCP_CMD -r deploy/nginx/* $TARGET_USER@$TARGET_HOST:$TARGET_DIR/deploy/nginx/
-          fi
-          if [ -d docs/sql ] && [ "$(ls -A docs/sql)" ]; then
-            $SCP_CMD -r docs/sql/* $TARGET_USER@$TARGET_HOST:$TARGET_DIR/docs/sql/
-          fi
+          $SSH_CMD "mkdir -p $TARGET_DIR /tmp/hayden-deploy"
+          $SCP_CMD /tmp/hayden-source.tar.gz $TARGET_USER@$TARGET_HOST:/tmp/hayden-deploy/
+          
+          echo "📂 在服务器上快速解压最新代码并覆盖配置..."
+          $SSH_CMD "tar -xzf /tmp/hayden-deploy/hayden-source.tar.gz -C $TARGET_DIR/ && rm -rf /tmp/hayden-deploy"
           if [ -f deploy/manage.sh ]; then
-            $SCP_CMD deploy/manage.sh $TARGET_USER@$TARGET_HOST:$TARGET_DIR/deploy/
-            $SSH_CMD "chmod +x $TARGET_DIR/deploy/manage.sh"
+            $SSH_CMD "chmod +x $TARGET_DIR/deploy/manage.sh 2>/dev/null || true"
           fi
+          echo "✅ 源码与配置文件同步完成！"
 
       # =======================================================
-      # 阶段 5: 管道流式传输镜像并即时导入
+      # 阶段 5: 在腾讯云服务器上利用本地 Docker 缓存增量构建并重启
       # =======================================================
-      - name: 压缩流式传输镜像并执行 docker load
-        run: |
-          echo "⚡ 正在通过 SSH 管道将镜像打包并直传至腾讯云服务器 ($TARGET_HOST) 并导入..."
-          docker save hayden-blog-backend:latest hayden-blog-frontend:latest | \
-            gzip -1 | \
-            ssh -i ~/.ssh/id_rsa -C -p $TARGET_PORT $TARGET_USER@$TARGET_HOST "gunzip | docker load"
-          echo "✅ 镜像传输并载入服务器成功！"
-
-      # =======================================================
-      # 阶段 6: 服务器执行平滑滚动更新
-      # =======================================================
-      - name: 重启服务容器
+      - name: 服务器增量构建与平滑滚动更新
         env:
           TARGET_DIR: ${{ secrets.SERVER_DEPLOY_DIR || '/opt/hayden-blog' }}
         run: |
-          echo "🔄 在腾讯云服务器 ($TARGET_HOST) 上滚动更新容器..."
+          echo "🔄 在腾讯云服务器 ($TARGET_HOST) 上利用本地 Docker 缓存增量构建与更新..."
           SSH_CMD="ssh -i ~/.ssh/id_rsa -p $TARGET_PORT $TARGET_USER@$TARGET_HOST"
+          
+          # 中止先前任何可能卡住的旧管道导入进程
+          $SSH_CMD "pkill -f 'docker load' 2>/dev/null || true"
+          
+          # 执行国内镜像源加速就地增量构建 (直接命中 JRE/Node 基础层与依赖缓存)
+          $SSH_CMD "cd $TARGET_DIR && docker compose build"
+          
+          # 平滑重启服务容器
           $SSH_CMD "cd $TARGET_DIR && docker compose up -d --remove-orphans"
+          
+          # 自动清理临时悬挂无用镜像
           $SSH_CMD "docker image prune -f"
+          
           echo "🎉 部署完成！服务运行状态如下："
           $SSH_CMD "cd $TARGET_DIR && docker compose ps"
