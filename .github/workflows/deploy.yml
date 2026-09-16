@@ -31,80 +31,105 @@ jobs:
           docker build -t hayden-blog-frontend:latest ./frontend
 
       # =======================================================
-      # 阶段 2: 配置 SSH 密钥与免密连接
+      # 阶段 2: 解析与标准化部署目标主机与凭据 (Host Normalization)
       # =======================================================
-      - name: 配置 SSH 密钥与免密连接
+      - name: 标准化解析目标主机与端口
         env:
-          SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
+          RAW_HOST: ${{ secrets.SERVER_HOST }}
+          RAW_USER: ${{ secrets.SERVER_USER }}
+          RAW_PORT: ${{ secrets.SERVER_PORT }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
-          echo "Connecting to host: $CLEAN_HOST"
-          ssh-keyscan -H -p ${{ secrets.SERVER_PORT || 22 }} "$CLEAN_HOST" >> ~/.ssh/known_hosts || true
+          # 1. 优先提取 IPv4 地址 (自动防御带 ubuntu@, ssh, http://, :22, 引号等任意格式)
+          DETECTED_IP=$(echo "$RAW_HOST" | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | head -n 1 || true)
+          if [ -n "$DETECTED_IP" ]; then
+            TARGET_HOST="$DETECTED_IP"
+          else
+            # 域名场景深度清洗
+            TARGET_HOST=$(echo "$RAW_HOST" | sed -e 's/^[a-zA-Z0-9._-]*@//' -e 's/^ssh //' -e 's#^https\?://##' -e 's/:[0-9]\+//' -e 's#/.*##' -e 's/["'\''[:space:]]//g' || true)
+          fi
+          # 强兜底默认使用腾讯云固定生产 IP
+          TARGET_HOST="${TARGET_HOST:-49.233.166.212}"
+          
+          # 2. 清洗用户名
+          TARGET_USER=$(echo "${RAW_USER:-ubuntu}" | sed -e 's/[^a-zA-Z0-9_-]//g' || true)
+          TARGET_USER="${TARGET_USER:-ubuntu}"
+          
+          # 3. 清洗端口
+          TARGET_PORT=$(echo "${RAW_PORT:-22}" | grep -oE "[0-9]+" | head -n 1 || true)
+          TARGET_PORT="${TARGET_PORT:-22}"
+          
+          echo "TARGET_HOST=$TARGET_HOST" >> $GITHUB_ENV
+          echo "TARGET_USER=$TARGET_USER" >> $GITHUB_ENV
+          echo "TARGET_PORT=$TARGET_PORT" >> $GITHUB_ENV
+          echo "✅ 成功标准化部署目标 -> 用户: $TARGET_USER | 主机: $TARGET_HOST | 端口: $TARGET_PORT"
 
       # =======================================================
-      # 阶段 3: 同步最新配置与 SQL 脚本至腾讯云服务器
+      # 阶段 3: 配置 SSH 密钥与免密直连
+      # =======================================================
+      - name: 配置 SSH 密钥与连通性验证
+        env:
+          SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf "%s\n" "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          cat << 'EOF' > ~/.ssh/config
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            LogLevel ERROR
+          EOF
+          chmod 600 ~/.ssh/config
+          
+          echo "🔍 验证与服务器 $TARGET_HOST 的免密连通性..."
+          ssh -i ~/.ssh/id_rsa -p $TARGET_PORT $TARGET_USER@$TARGET_HOST "echo '✅ SSH 免密握手连接成功！'"
+
+      # =======================================================
+      # 阶段 4: 同步最新配置与 SQL 脚本至腾讯云服务器
       # =======================================================
       - name: 同步部署配置到服务器
         env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
           TARGET_DIR: ${{ secrets.SERVER_DEPLOY_DIR || '/opt/hayden-blog' }}
         run: |
-          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
-          echo "🚀 正在同步配置文件到服务器 $TARGET_DIR (Host: $CLEAN_HOST) ..."
-          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $SERVER_PORT"
-          SCP_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P $SERVER_PORT"
+          echo "🚀 正在同步配置文件到服务器 $TARGET_DIR (目标: $TARGET_USER@$TARGET_HOST:$TARGET_PORT) ..."
+          SSH_CMD="ssh -i ~/.ssh/id_rsa -p $TARGET_PORT $TARGET_USER@$TARGET_HOST"
+          SCP_CMD="scp -i ~/.ssh/id_rsa -P $TARGET_PORT"
           
-          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "mkdir -p $TARGET_DIR/deploy/nginx $TARGET_DIR/docs/sql $TARGET_DIR/data"
-          scp $SCP_OPTS docker-compose.yml $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/
+          $SSH_CMD "mkdir -p $TARGET_DIR/deploy/nginx $TARGET_DIR/docs/sql $TARGET_DIR/data"
+          $SCP_CMD docker-compose.yml $TARGET_USER@$TARGET_HOST:$TARGET_DIR/
           if [ -d deploy/nginx ] && [ "$(ls -A deploy/nginx)" ]; then
-            scp $SCP_OPTS -r deploy/nginx/* $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/deploy/nginx/
+            $SCP_CMD -r deploy/nginx/* $TARGET_USER@$TARGET_HOST:$TARGET_DIR/deploy/nginx/
           fi
           if [ -d docs/sql ] && [ "$(ls -A docs/sql)" ]; then
-            scp $SCP_OPTS -r docs/sql/* $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/docs/sql/
+            $SCP_CMD -r docs/sql/* $TARGET_USER@$TARGET_HOST:$TARGET_DIR/docs/sql/
           fi
           if [ -f deploy/manage.sh ]; then
-            scp $SCP_OPTS deploy/manage.sh $SERVER_USER@$CLEAN_HOST:$TARGET_DIR/deploy/
-            ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "chmod +x $TARGET_DIR/deploy/manage.sh"
+            $SCP_CMD deploy/manage.sh $TARGET_USER@$TARGET_HOST:$TARGET_DIR/deploy/
+            $SSH_CMD "chmod +x $TARGET_DIR/deploy/manage.sh"
           fi
 
       # =======================================================
-      # 阶段 4: 管道流式传输镜像并即时导入
+      # 阶段 5: 管道流式传输镜像并即时导入
       # =======================================================
       - name: 压缩流式传输镜像并执行 docker load
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
         run: |
-          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
-          echo "⚡ 正在通过 SSH 管道将镜像打包并直传至腾讯云服务器 ($CLEAN_HOST) 并导入..."
-          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -C -p $SERVER_PORT"
+          echo "⚡ 正在通过 SSH 管道将镜像打包并直传至腾讯云服务器 ($TARGET_HOST) 并导入..."
           docker save hayden-blog-backend:latest hayden-blog-frontend:latest | \
             gzip -1 | \
-            ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "gunzip | docker load"
+            ssh -i ~/.ssh/id_rsa -C -p $TARGET_PORT $TARGET_USER@$TARGET_HOST "gunzip | docker load"
           echo "✅ 镜像传输并载入服务器成功！"
 
       # =======================================================
-      # 阶段 5: 服务器执行平滑滚动更新
+      # 阶段 6: 服务器执行平滑滚动更新
       # =======================================================
       - name: 重启服务容器
         env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
           TARGET_DIR: ${{ secrets.SERVER_DEPLOY_DIR || '/opt/hayden-blog' }}
         run: |
-          CLEAN_HOST=$(echo "${SERVER_HOST}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^https\?://##' -e 's#/.*$##' | tr -d '\r\n')
-          echo "🔄 在腾讯云服务器 ($CLEAN_HOST) 上滚动更新容器..."
-          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $SERVER_PORT"
-          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "cd $TARGET_DIR && docker compose up -d --remove-orphans"
-          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "docker image prune -f"
+          echo "🔄 在腾讯云服务器 ($TARGET_HOST) 上滚动更新容器..."
+          SSH_CMD="ssh -i ~/.ssh/id_rsa -p $TARGET_PORT $TARGET_USER@$TARGET_HOST"
+          $SSH_CMD "cd $TARGET_DIR && docker compose up -d --remove-orphans"
+          $SSH_CMD "docker image prune -f"
           echo "🎉 部署完成！服务运行状态如下："
-          ssh $SSH_OPTS $SERVER_USER@$CLEAN_HOST "cd $TARGET_DIR && docker compose ps"
+          $SSH_CMD "cd $TARGET_DIR && docker compose ps"
