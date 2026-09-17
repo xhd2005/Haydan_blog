@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.PageResult;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.MediaStreamResponse;
@@ -85,18 +86,21 @@ public class MediaController {
         return Result.success(mediaService.getMediaList(page, pageSize, keyword));
     }
 
+    @AuditLog(module = "媒体资产", operation = "生成直传预签名凭据")
     @PostMapping("/presigned-url")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<PresignedUploadResponse> getPresignedUploadUrl(@Valid @RequestBody PresignedUploadRequest request) {
         return Result.success(mediaService.createPresignedUploadUrl(request));
     }
 
+    @AuditLog(module = "媒体资产", operation = "上传媒体文件")
     @PostMapping("/upload")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Media> upload(@RequestParam("file") MultipartFile file) {
         return Result.success(mediaService.uploadFile(file));
     }
 
+    @AuditLog(module = "媒体资产", operation = "删除媒体文件")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> deleteMedia(@PathVariable Long id) {

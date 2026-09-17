@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.PageResult;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.ProjectCreateUpdateRequest;
@@ -44,12 +45,14 @@ public class ProjectController {
         return Result.success(projectService.getBySlug(slug));
     }
 
+    @AuditLog(module = "造物项目", operation = "创建项目")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Long> createProject(@Valid @RequestBody ProjectCreateUpdateRequest request) {
         return Result.success(projectService.createProject(request));
     }
 
+    @AuditLog(module = "造物项目", operation = "修改项目")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateProject(@PathVariable Long id, @Valid @RequestBody ProjectCreateUpdateRequest request) {
@@ -57,6 +60,7 @@ public class ProjectController {
         return Result.success();
     }
 
+    @AuditLog(module = "造物项目", operation = "删除项目")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> deleteProject(@PathVariable Long id) {

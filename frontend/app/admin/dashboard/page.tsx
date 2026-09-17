@@ -40,8 +40,6 @@ import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { InspirationQuickNotesCard } from '@/components/admin/dashboard/InspirationQuickNotesCard';
 import { BentoFlipTiltCard } from '@/components/admin/dashboard/BentoFlipTiltCard';
 import { SwipeableTodoCard } from '@/components/admin/dashboard/SwipeableTodoCard';
-import { RealtimeVisitorRadar } from '@/components/admin/dashboard/RealtimeVisitorRadar';
-import { ContentPublishCalendar } from '@/components/admin/dashboard/ContentPublishCalendar';
 
 interface AuditLogItem {
   username?: string;
@@ -645,23 +643,7 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      {/* WebSocket / SSE 实时访客足迹雷达 */}
-      <RealtimeVisitorRadar />
 
-      {/* 周/月双重视角发文排期日历 (Content Calendar) */}
-      <ContentPublishCalendar
-        posts={
-          stats?.recentPosts?.map((p) => ({
-            id: p.id,
-            title: p.title,
-            slug: p.slug,
-            status: p.status,
-            viewCount: p.viewCount,
-            publishedAt: (p as any).publishedAt || (p as any).createdAt,
-          })) || []
-        }
-        draftsCount={stats?.draftPosts ?? 0}
-      />
 
       {/* 活跃热力图 + 最近动态流 (Mission Log) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

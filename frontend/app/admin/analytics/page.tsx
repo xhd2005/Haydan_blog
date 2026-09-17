@@ -25,8 +25,7 @@ import {
 } from 'lucide-react';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { DualAxisFinanceChart } from '@/components/admin/analytics/DualAxisFinanceChart';
-import { ReadingDepthFunnelCard } from '@/components/admin/analytics/ReadingDepthFunnelCard';
-import { InteractiveConversionRadar } from '@/components/admin/analytics/InteractiveConversionRadar';
+import { ClientDeviceBreakdownCard } from '@/components/admin/analytics/ClientDeviceBreakdownCard';
 import { VisitorMaskedDetailTable } from '@/components/admin/analytics/VisitorMaskedDetailTable';
 
 export default function AdminAnalyticsPage() {
@@ -196,23 +195,14 @@ export default function AdminAnalyticsPage() {
       {/* 1. Apple 财务级双轴分析图表 (含时间滑块胶囊 7d / 30d / realtime) */}
       <DualAxisFinanceChart initialTrend={trend} />
 
-      {/* 2. 核心分析矩阵：阅读滚动深度漏斗 + 互动转化雷达 */}
+      {/* 2. 核心分析矩阵：最受欢迎热门文章 Top 10 + 客户端终端与系统画像 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 读者阅读滚动深度漏斗分析 (25% ~ 100% 梯度与段落流失归因) */}
-        <ReadingDepthFunnelCard topPosts={topPosts} />
-
-        {/* 读者互动转化雷达 (代码复制、外链、点赞、评论五维雷达) */}
-        <InteractiveConversionRadar overview={overview} />
-      </div>
-
-      {/* 3. 热门文章排行榜 Top 5 与流量渠道来源画像 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top 5 最受欢迎热门文章 */}
+        {/* 最受欢迎热门文章 Top 10 */}
         <div className="p-6 rounded-3xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.06] pb-3">
             <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
               <Flame className="w-4 h-4 text-amber-500" />
-              <span>最受欢迎热门文章 Top 5</span>
+              <span>最受欢迎热门文章 Top 10</span>
             </div>
             <Link
               href="/admin/posts"
@@ -223,9 +213,9 @@ export default function AdminAnalyticsPage() {
             </Link>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
             {topPosts.length === 0 ? (
-              <p className="text-center py-8 text-slate-400 dark:text-zinc-500">暂无文章阅读数据</p>
+              <p className="text-center py-12 text-slate-400 dark:text-zinc-500">暂无文章阅读数据</p>
             ) : (
               topPosts.map((post, idx) => (
                 <div 
@@ -320,6 +310,9 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* 3. 客户端终端与操作系统画像 (100% 真实请求流水解析) */}
+      <ClientDeviceBreakdownCard sources={sources} totalPv={overview?.totalPv} />
 
       {/* 4. 访客明细严格末位掩码脱敏表格 (VisitorMaskedDetailTable) */}
       <VisitorMaskedDetailTable />

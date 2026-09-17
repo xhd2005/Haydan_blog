@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.PageResult;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.PostCreateUpdateRequest;
@@ -44,6 +45,7 @@ public class PostController {
         return Result.success(postService.getAdminPosts(page, pageSize, status, keyword, lang));
     }
 
+    @AuditLog(module = "文章管理", operation = "派生多语言译文")
     @PostMapping("/{id}/derive-translation")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<PostDetailVO> deriveTranslation(@PathVariable Long id) {
@@ -70,6 +72,7 @@ public class PostController {
         return Result.success(postService.getPostById(id));
     }
 
+    @AuditLog(module = "文章管理", operation = "发布博文")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Long> createPost(@RequestBody PostCreateUpdateRequest request) {
@@ -82,6 +85,7 @@ public class PostController {
         return Result.success(postService.createPost(request));
     }
 
+    @AuditLog(module = "文章管理", operation = "修改博文")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updatePost(@PathVariable Long id, @RequestBody PostCreateUpdateRequest request) {
@@ -89,6 +93,7 @@ public class PostController {
         return Result.success();
     }
 
+    @AuditLog(module = "文章管理", operation = "删除博文")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> deletePost(@PathVariable Long id) {
@@ -96,6 +101,7 @@ public class PostController {
         return Result.success();
     }
 
+    @AuditLog(module = "文章管理", operation = "更新博文状态")
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateStatus(@PathVariable Long id, @RequestParam String status) {
@@ -103,6 +109,7 @@ public class PostController {
         return Result.success();
     }
 
+    @AuditLog(module = "文章管理", operation = "更新博文置顶")
     @PatchMapping("/{id}/featured")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateFeatured(@PathVariable Long id, @RequestParam Integer featured) {
@@ -110,6 +117,7 @@ public class PostController {
         return Result.success();
     }
 
+    @AuditLog(module = "文章管理", operation = "点赞博文")
     @PostMapping("/{id}/like")
     public Result<Void> likePost(@PathVariable Long id) {
         postService.likePost(id);

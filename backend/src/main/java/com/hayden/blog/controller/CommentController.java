@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.PageResult;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.CommentCreateRequest;
@@ -29,6 +30,7 @@ public class CommentController {
         return Result.success(commentService.getCommentTree(targetType, targetId));
     }
 
+    @AuditLog(module = "评论互动", operation = "发表评论")
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     public Result<Long> createComment(@Valid @RequestBody CommentCreateRequest request) {
@@ -45,6 +47,7 @@ public class CommentController {
         return Result.success(commentService.getAdminComments(page, pageSize, status));
     }
 
+    @AuditLog(module = "评论互动", operation = "审核评论状态")
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateStatus(@PathVariable Long id, @RequestParam String status) {
@@ -52,6 +55,7 @@ public class CommentController {
         return Result.success();
     }
 
+    @AuditLog(module = "评论互动", operation = "删除评论")
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public Result<Void> deleteComment(@PathVariable Long id) {

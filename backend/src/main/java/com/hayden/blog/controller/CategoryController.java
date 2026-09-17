@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.entity.Category;
 import com.hayden.blog.service.CategoryService;
@@ -27,6 +28,7 @@ public class CategoryController {
         return Result.success(categoryService.getBySlug(slug));
     }
 
+    @AuditLog(module = "知识分类", operation = "创建分类")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> createCategory(@Valid @RequestBody Category category) {
@@ -34,6 +36,7 @@ public class CategoryController {
         return Result.success();
     }
 
+    @AuditLog(module = "知识分类", operation = "修改分类")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateCategory(@PathVariable Long id, @Valid @RequestBody Category category) {
@@ -41,6 +44,7 @@ public class CategoryController {
         return Result.success();
     }
 
+    @AuditLog(module = "知识分类", operation = "删除分类")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> deleteCategory(@PathVariable Long id) {

@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.ChangePasswordRequest;
 import com.hayden.blog.dto.LoginRequest;
@@ -33,6 +34,7 @@ public class AuthController {
         return Result.success(captchaService.generateCaptcha());
     }
 
+    @AuditLog(module = "用户认证", operation = "用户登录")
     @PostMapping("/login")
     public Result<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
@@ -41,11 +43,13 @@ public class AuthController {
         return Result.success(userService.login(request, clientIp));
     }
 
+    @AuditLog(module = "用户认证", operation = "新用户注册")
     @PostMapping("/register")
     public Result<LoginResponse> register(@Valid @RequestBody com.hayden.blog.dto.RegisterRequest request) {
         return Result.success(userService.register(request));
     }
 
+    @AuditLog(module = "用户认证", operation = "用户注销登出")
     @PostMapping("/logout")
     public Result<Void> logout() {
         return Result.success();
@@ -56,12 +60,14 @@ public class AuthController {
         return Result.success(userService.getCurrentUser());
     }
 
+    @AuditLog(module = "用户认证", operation = "修改账号密码")
     @PutMapping("/password")
     public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         userService.changePassword(request);
         return Result.success();
     }
 
+    @AuditLog(module = "用户认证", operation = "修改个人资料")
     @PutMapping("/profile")
     public Result<Void> updateProfile(@RequestBody User profile) {
         userService.updateProfile(profile);

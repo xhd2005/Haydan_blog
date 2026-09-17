@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.FriendActivity;
 import com.hayden.blog.dto.FriendApplyRequest;
@@ -37,6 +38,7 @@ public class FriendController {
         return Result.success(friendService.inspectFriendSite(url));
     }
 
+    @AuditLog(module = "友链生态", operation = "申请友链")
     @PostMapping("/apply")
     public Result<Friend> applyFriend(@Valid @RequestBody FriendApplyRequest request) {
         return Result.success(friendService.applyFriend(request));
@@ -48,12 +50,14 @@ public class FriendController {
         return Result.success(friendService.getAllFriends());
     }
 
+    @AuditLog(module = "友链生态", operation = "添加友链")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Long> createFriend(@Valid @RequestBody FriendCreateRequest request) {
         return Result.success(friendService.createFriend(request));
     }
 
+    @AuditLog(module = "友链生态", operation = "修改友链")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateFriend(@PathVariable Long id, @Valid @RequestBody FriendCreateRequest request) {
@@ -61,6 +65,7 @@ public class FriendController {
         return Result.success();
     }
 
+    @AuditLog(module = "友链生态", operation = "审核友链状态")
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateFriendStatus(@PathVariable Long id, @Valid @RequestBody FriendStatusUpdateRequest request) {
@@ -68,18 +73,21 @@ public class FriendController {
         return Result.success();
     }
 
+    @AuditLog(module = "友链生态", operation = "探测友链健康度")
     @PostMapping("/{id}/ping")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Friend> pingFriend(@PathVariable Long id) {
         return Result.success(friendService.pingFriend(id));
     }
 
+    @AuditLog(module = "友链生态", operation = "全量探测友链健康度")
     @PostMapping("/ping-all")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<List<Friend>> pingAllFriends() {
         return Result.success(friendService.pingAllFriends());
     }
 
+    @AuditLog(module = "友链生态", operation = "删除友链")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> deleteFriend(@PathVariable Long id) {

@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.SiteSettingUpdateRequest;
 import com.hayden.blog.entity.SiteSetting;
@@ -27,6 +28,7 @@ public class SiteSettingController {
         return Result.success(com.hayden.blog.vo.SiteSettingPublicVO.from(raw));
     }
 
+    @AuditLog(module = "系统设置", operation = "修改全站核心配置")
     @PutMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateSettings(@RequestBody SiteSettingUpdateRequest request) {
@@ -34,12 +36,14 @@ public class SiteSettingController {
         return Result.success();
     }
 
+    @AuditLog(module = "系统设置", operation = "测试 MinIO 连接")
     @PostMapping("/test-minio")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<com.hayden.blog.dto.MinioTestResult> testMinio(@RequestBody(required = false) com.hayden.blog.dto.TestMinioRequest request) {
         return Result.success(siteSettingService.testMinioConnection(request));
     }
 
+    @AuditLog(module = "系统设置", operation = "测试 OSS 连接")
     @PostMapping("/test-oss")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<com.hayden.blog.dto.MinioTestResult> testOss(@RequestBody(required = false) com.hayden.blog.dto.TestMinioRequest request) {

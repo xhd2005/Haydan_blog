@@ -86,7 +86,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<Post> posts = postMapper.selectList(new LambdaQueryWrapper<Post>()
                 .eq(Post::getStatus, "PUBLISHED")
                 .orderByDesc(Post::getViewCount)
-                .last("LIMIT 5"));
+                .last("LIMIT 10"));
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Post post : posts) {

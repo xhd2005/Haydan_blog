@@ -25,7 +25,22 @@ import {
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { triggerRevalidate } from '@/components/admin/revalidate';
 import { getCityIataCode } from '@/components/journey/footprint';
-import { AdminVoyageMapLibre } from '@/components/admin/journey/AdminVoyageMapLibre';
+import dynamic from 'next/dynamic';
+
+const AdminVoyageMapLibre = dynamic(
+  () => import('@/components/admin/journey/AdminVoyageMapLibre').then((mod) => mod.AdminVoyageMapLibre),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[500px] rounded-3xl bg-slate-100/80 dark:bg-neutral-900/60 flex flex-col items-center justify-center gap-3 border border-slate-200/80 dark:border-white/[0.08] animate-pulse">
+        <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+        <span className="text-xs font-mono text-slate-400 dark:text-zinc-500">
+          正在载入 MapLibre GL 3D 世界交互航图...
+        </span>
+      </div>
+    ),
+  }
+);
 
 // 常用城市坐标与国家智能预设字典 (国内 20 城市 + 国际及常访 16 城市，共 36 个预设目的地)
 const PRESET_LOCATIONS = {

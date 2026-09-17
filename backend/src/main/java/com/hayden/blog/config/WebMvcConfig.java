@@ -1,5 +1,6 @@
 package com.hayden.blog.config;
 
+import com.hayden.blog.interceptor.VisitRecordInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -7,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.CacheControl;
 import org.springframework.web.filter.ShallowEtagHeaderFilter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -16,11 +18,30 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
+    private final VisitRecordInterceptor visitRecordInterceptor;
+
+    public WebMvcConfig(VisitRecordInterceptor visitRecordInterceptor) {
+        this.visitRecordInterceptor = visitRecordInterceptor;
+    }
+
     @Value("${app.upload.dir:./uploads/}")
     private String uploadDir;
 
     @Value("${app.upload.url-prefix:/uploads/}")
     private String urlPrefix;
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(visitRecordInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns(
+                        "/uploads/**",
+                        "/error",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/favicon.ico"
+                );
+    }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {

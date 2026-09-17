@@ -44,42 +44,36 @@ export interface FloatingAcrylicDockProps {
   onCloseMobile?: () => void;
 }
 
-// 主功能岛：创作与知识职能
+// 主功能岛：创作与知识生态（精简分组，提升呼吸感）
 export const MAIN_ISLAND_NAV = [
   {
-    group: '指挥与创作',
+    group: '创作工坊',
     items: [
       { key: 'dashboard', label: '空间指挥', route: '/admin/dashboard', icon: LayoutDashboard, exact: true },
       { key: 'posts', label: '文章管理', route: '/admin/posts', icon: FileText, exact: true },
-      { key: 'create-post', label: '新建文章', route: '/admin/posts/create', icon: PenTool },
       { key: 'memos', label: '灵感速记', route: '/admin/memos', icon: Sparkles },
-      { key: 'media', label: '流光媒体', route: '/admin/media', icon: HardDrive },
+      { key: 'media', label: '媒体中心', route: '/admin/media', icon: HardDrive },
     ]
   },
   {
-    group: '知识星系与足迹',
+    group: '知识与互动',
     items: [
-      { key: 'graph', label: '知识星系', route: '/admin/graph', icon: Layers },
+      { key: 'graph', label: '知识图谱', route: '/admin/graph', icon: Layers },
       { key: 'categories', label: '分类标签', route: '/admin/categories', icon: FolderTree },
       { key: 'projects', label: '履历造物', route: '/admin/projects', icon: FolderGit2 },
       { key: 'journey', label: '旅行足迹', route: '/admin/journey', icon: Compass },
-    ]
-  },
-  {
-    group: '社区与互动',
-    items: [
-      { key: 'comments', label: '评论审核', route: '/admin/comments', icon: MessageSquareQuote },
-      { key: 'users', label: '读者管理', route: '/admin/users', icon: Users },
+      { key: 'comments', label: '读者评论', route: '/admin/comments', icon: MessageSquareQuote },
       { key: 'links', label: '友链管理', route: '/admin/links', icon: Link2 },
+      { key: 'users', label: '读者管理', route: '/admin/users', icon: Users },
     ]
   }
 ];
 
-// 控制岛：系统体检、安全审计与系统设置
+// 控制岛：横向微晶胶囊工具集
 export const CONTROL_ISLAND_NAV = [
   { key: 'analytics', label: '访问分析', route: '/admin/analytics', icon: BarChart3 },
   { key: 'health', label: '系统体检', route: '/admin/health', icon: Activity },
-  { key: 'audit-logs', label: '审计控制台', route: '/admin/audit-logs', icon: ShieldAlert },
+  { key: 'audit-logs', label: '审计日志', route: '/admin/audit-logs', icon: ShieldAlert },
   { key: 'settings', label: '系统设置', route: '/admin/settings', icon: Cpu },
 ];
 
@@ -238,7 +232,7 @@ export function FloatingAcrylicDock({
                           onClick={onCloseMobile}
                           onMouseEnter={() => setHoveredItem(item.key)}
                           onMouseLeave={() => setHoveredItem(null)}
-                          className={`relative flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-medium transition-all duration-200 ${
+                          className={`relative flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-all duration-200 ${
                             isActive
                               ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/[0.15] border border-emerald-500/30 dark:border-emerald-400/30 shadow-[0_0_12px_rgba(16,185,129,0.15)] font-semibold'
                               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100/70 dark:hover:bg-white/[0.06]'
@@ -278,56 +272,68 @@ export function FloatingAcrylicDock({
         </div>
 
         {/* ========================================================================= */}
-        {/* 下岛：站长控制与系统状态坞 (Control Island)                               */}
+        {/* 下岛：站长控制与系统状态坞 (Horizontal Control Capsule Dock)               */}
         {/* ========================================================================= */}
-        <div className="shrink-0 p-2 border-t border-slate-200/80 dark:border-white/[0.08] bg-slate-50/50 dark:bg-black/20 space-y-2">
-          {/* 控制矩阵导航小条 */}
-          <div className="grid grid-cols-1 gap-0.5">
+        <div className="shrink-0 p-2.5 border-t border-slate-200/80 dark:border-white/[0.08] bg-slate-50/50 dark:bg-black/20 space-y-2.5">
+          {/* 横向 4 联微晶图标胶囊控制坞 (展开态横向 4 联，折叠态紧凑竖排) */}
+          <div className={`${collapsed ? 'flex flex-col gap-1' : 'flex items-center justify-between gap-1 p-1 rounded-2xl bg-white/70 dark:bg-black/40 border border-slate-200/80 dark:border-white/[0.06] shadow-xs'}`}>
             {CONTROL_ISLAND_NAV.map((ctrl) => {
               const Icon = ctrl.icon;
               const isActive = pathname.startsWith(ctrl.route);
               return (
-                <div key={ctrl.route} className="relative">
+                <div key={ctrl.route} className="relative flex-1 flex justify-center">
                   <Link
                     href={ctrl.route}
                     onClick={onCloseMobile}
                     onMouseEnter={() => setHoveredItem(ctrl.key)}
                     onMouseLeave={() => setHoveredItem(null)}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs transition-colors ${
+                    title={ctrl.label}
+                    className={`flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer ${
                       isActive
-                        ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/15 font-semibold'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100/80 dark:hover:bg-white/[0.05]'
-                    } ${collapsed ? 'justify-center px-0' : ''}`}
+                        ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 shadow-xs'
+                        : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08]'
+                    } ${collapsed ? 'w-10 h-10' : 'w-full h-8'}`}
                   >
-                    <Icon className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-zinc-400" />
-                    {!collapsed && <span className="truncate">{ctrl.label}</span>}
+                    <Icon className="w-4 h-4 shrink-0" />
                   </Link>
 
-                  {collapsed && hoveredItem === ctrl.key && (
-                    <div className="absolute left-[72px] top-1/2 -translate-y-1/2 z-50 px-2.5 py-1 rounded-xl bg-slate-900/90 dark:bg-neutral-800/95 text-white text-[11px] whitespace-nowrap shadow-xl border border-white/10 pointer-events-none">
+                  {/* 悬浮气泡提示 (Tooltip) */}
+                  {hoveredItem === ctrl.key && (
+                    <div className={`absolute z-50 px-2.5 py-1 rounded-xl bg-slate-900/90 dark:bg-neutral-800/95 text-white text-[10px] font-mono whitespace-nowrap shadow-xl border border-white/10 pointer-events-none animate-in fade-in duration-150 ${
+                      collapsed ? 'left-[56px] top-1/2 -translate-y-1/2' : 'bottom-full mb-2 left-1/2 -translate-x-1/2'
+                    }`}>
                       {ctrl.label}
                     </div>
                   )}
                 </div>
               );
             })}
-          </div>
 
-          {/* 前台直达按钮 */}
-          <Link
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            title={collapsed ? '返回博客前台' : undefined}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-white/[0.06] transition-colors ${
-              collapsed ? 'justify-center px-0' : 'justify-between'
-            }`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <ExternalLink className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-zinc-500" />
-              {!collapsed && <span className="truncate">返回博客前台</span>}
-            </div>
-          </Link>
+            {/* 前台直达按钮 (整合至横向胶囊右侧) */}
+            {!collapsed && (
+              <>
+                <div className="w-px h-4 bg-slate-200 dark:bg-white/[0.08]" />
+                <div className="relative flex justify-center">
+                  <Link
+                    href="/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onMouseEnter={() => setHoveredItem('frontend-preview')}
+                    onMouseLeave={() => setHoveredItem(null)}
+                    title="新窗口返回博客前台"
+                    className="flex items-center justify-center p-2 rounded-xl text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors cursor-pointer w-8 h-8"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+                  {hoveredItem === 'frontend-preview' && (
+                    <div className="absolute z-50 px-2 py-0.5 rounded-xl bg-slate-900/90 dark:bg-neutral-800/95 text-white text-[10px] font-mono whitespace-nowrap shadow-xl border border-white/10 pointer-events-none bottom-full mb-2 left-1/2 -translate-x-1/2">
+                      前台
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* 站长身份名片与安全退出 */}
           <div

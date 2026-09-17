@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.LikeBatchStatusRequest;
 import com.hayden.blog.dto.LikeToggleRequest;
@@ -22,6 +23,7 @@ public class LikeController {
     private final UserService userService;
     private final com.hayden.blog.service.LikeRateLimiterService likeRateLimiterService;
 
+    @AuditLog(module = "文章互动", operation = "切换点赞状态")
     @PostMapping("/toggle")
     public Result<LikeToggleVO> toggleLike(@Valid @RequestBody LikeToggleRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
         Long userId = null;

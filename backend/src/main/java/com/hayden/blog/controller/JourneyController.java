@@ -1,5 +1,6 @@
 package com.hayden.blog.controller;
 
+import com.hayden.blog.annotation.AuditLog;
 import com.hayden.blog.common.PageResult;
 import com.hayden.blog.common.Result;
 import com.hayden.blog.dto.JourneyCreateUpdateRequest;
@@ -51,12 +52,14 @@ public class JourneyController {
                 .build());
     }
 
+    @AuditLog(module = "旅行足迹", operation = "创建旅行足迹")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Long> createJourney(@Valid @RequestBody JourneyCreateUpdateRequest request) {
         return Result.success(journeyService.createJourney(request));
     }
 
+    @AuditLog(module = "旅行足迹", operation = "修改旅行足迹")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateJourney(@PathVariable Long id, @Valid @RequestBody JourneyCreateUpdateRequest request) {
@@ -64,6 +67,7 @@ public class JourneyController {
         return Result.success();
     }
 
+    @AuditLog(module = "旅行足迹", operation = "删除旅行足迹")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> deleteJourney(@PathVariable Long id) {

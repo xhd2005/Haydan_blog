@@ -58,20 +58,19 @@ export function AdminVoyageMapLibre({
 
   // 获取深浅主题切片配置
   const getMapStyle = useCallback((dark: boolean): maplibregl.StyleSpecification => {
-    const tileUrl = dark
-      ? 'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png'
-      : 'https://a.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}@2x.png';
+    // 采用稳定、高可用的 Carto 瓦片多子域轮询 (去掉可能引起超大图 404 的 @2x)
+    const subdomains = ['a', 'b', 'c', 'd'];
+    const tileBase = dark ? 'rastertiles/dark_all' : 'rastertiles/light_all';
+    const tiles = subdomains.map(
+      (s) => `https://${s}.basemaps.cartocdn.com/${tileBase}/{z}/{x}/{y}.png`
+    );
 
     return {
       version: 8,
       sources: {
         'carto-tiles': {
           type: 'raster',
-          tiles: [
-            tileUrl,
-            tileUrl.replace('a.basemaps', 'b.basemaps'),
-            tileUrl.replace('a.basemaps', 'c.basemaps'),
-          ],
+          tiles,
           tileSize: 256,
           attribution: '© OpenStreetMap contributors, © CARTO',
         },
@@ -92,6 +91,8 @@ export function AdminVoyageMapLibre({
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
+    let resizeObserver: ResizeObserver | null = null;
+
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: getMapStyle(isDark),
@@ -104,7 +105,21 @@ export function AdminVoyageMapLibre({
 
     map.on('load', () => {
       setMapLoaded(true);
+      map.resize();
+      setTimeout(() => map.resize(), 150);
+      setTimeout(() => map.resize(), 500);
+      setTimeout(() => map.resize(), 1200);
     });
+
+    // 针对容器尺寸动态渲染防御（如折叠面板展开、窗口缩放、Tabs 切换）
+    if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        if (mapRef.current) {
+          mapRef.current.resize();
+        }
+      });
+      resizeObserver.observe(mapContainerRef.current);
+    }
 
     // 点击地图拾取坐标
     map.on('click', (e) => {
@@ -119,6 +134,9 @@ export function AdminVoyageMapLibre({
     mapRef.current = map;
 
     return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       map.remove();
       mapRef.current = null;
       setMapLoaded(false);
