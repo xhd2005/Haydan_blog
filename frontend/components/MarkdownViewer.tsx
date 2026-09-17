@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, Copy, Code2, Info, Lightbulb, AlertTriangle, AlertCircle, AlertOctagon } from 'lucide-react';
+import { Check, Copy, Code2, Info, Lightbulb, AlertTriangle, AlertCircle, AlertOctagon, Link2, Sprout } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { useI18n } from '@/lib/i18n';
 import { useAiCodeLens, AiCodeLensButton, AiCodeLensPanel } from './blog/AiCodeLensDrawer';
+import { BacklinkPreviewCard } from './admin/posts/BacklinkPreviewCard';
+import type { Post } from '@/lib/types';
 
 // 中英文混排微空格规范化（Pangu Spacing）
 export function formatPangu(text: string): string {
@@ -16,10 +18,68 @@ export function formatPangu(text: string): string {
     .replace(/([A-Za-z0-9_`~+=\-/*#])([\u4e00-\u9fa5])/g, '$1 $2');
 }
 
-// 递归格式化 ReactNode 中的纯文本中英文间距与 ==高亮标注==
+// 数字花园双向反向链接节点（集成 Hover 预览卡片与节点直达）
+export function WikiLinkNode({ nodeName }: { nodeName: string }) {
+  const [showPreview, setShowPreview] = useState(false);
+  const [hoverTimer, setHoverTimer] = useState<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    const timer = setTimeout(() => {
+      setShowPreview(true);
+    }, 250);
+    setHoverTimer(timer);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimer) clearTimeout(hoverTimer);
+    setShowPreview(false);
+  };
+
+  const previewPost: Partial<Post> = {
+    title: nodeName,
+    slug: encodeURIComponent(nodeName.toLowerCase().replace(/\s+/g, '-')),
+    excerpt: `数字花园知识节点：「${nodeName}」。包含相关思考沉淀、双向关联引用及延伸知识网络。`,
+    createdAt: new Date().toISOString(),
+  };
+
+  return (
+    <span
+      className="relative inline-block align-baseline"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 font-medium text-xs hover:bg-emerald-500/20 cursor-pointer transition-colors select-none"
+        title={`数字花园知识节点: ${nodeName}`}
+      >
+        <Link2 className="w-3 h-3 text-emerald-500" />
+        <span>[[{nodeName}]]</span>
+      </span>
+      {showPreview && (
+        <div className="absolute left-0 top-full mt-1.5 z-50 pointer-events-auto">
+          <BacklinkPreviewCard post={previewPost} onClose={() => setShowPreview(false)} />
+        </div>
+      )}
+    </span>
+  );
+}
+
+// 递归格式化 ReactNode 中的纯文本中英文间距、==高亮标注== 与 [[数字花园双链]]
 function applyPanguToChildren(children: React.ReactNode): React.ReactNode {
   if (typeof children === 'string') {
     const pangu = formatPangu(children);
+    // 处理 [[双向链接]] 与 ==高亮标注==
+    if (pangu.includes('[[') && pangu.includes(']]')) {
+      const parts = pangu.split(/(\[\[[^\]]+\]\])/g);
+      return parts.map((part, idx) => {
+        if (part.startsWith('[[') && part.endsWith(']]') && part.length > 4) {
+          const nodeName = part.slice(2, -2);
+          return <WikiLinkNode key={`wiki-${idx}`} nodeName={nodeName} />;
+        }
+        return applyPanguToChildren(part);
+      });
+    }
+
     if (pangu.includes('==')) {
       const parts = pangu.split(/(==[^=]+==)/g);
       return parts.map((part, idx) => {
@@ -27,7 +87,7 @@ function applyPanguToChildren(children: React.ReactNode): React.ReactNode {
           const inner = part.slice(2, -2);
           return (
             <mark
-              key={idx}
+              key={`mark-${idx}`}
               className="px-1.5 py-0.5 mx-0.5 rounded-md bg-amber-400/25 dark:bg-amber-500/25 text-amber-900 dark:text-amber-200 font-medium border-b-2 border-amber-500/60"
             >
               {inner}

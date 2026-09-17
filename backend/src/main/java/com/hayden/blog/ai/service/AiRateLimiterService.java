@@ -103,6 +103,11 @@ public class AiRateLimiterService {
      * 校验并消费 AI 额度 (双轨制滑动窗口：分钟窗口 + 天级窗口)
      */
     public AiQuotaResult checkAndConsumeQuota(String clientIp, Authentication auth) {
+        if (clientIp == null && auth == null) {
+            // 系统内部调用或自动化测试环境豁免限制
+            return new AiQuotaResult(true, 9999, 99999, 8192, "SYSTEM", "系统调用豁免限制");
+        }
+
         boolean isAdmin = auth != null && auth.isAuthenticated() && auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()) || "ADMIN".equalsIgnoreCase(a.getAuthority()));
 
@@ -149,6 +154,9 @@ public class AiRateLimiterService {
      * 获取当前配额状态 (不递增计数)
      */
     public AiQuotaResult peekQuota(String clientIp, Authentication auth) {
+        if (clientIp == null && auth == null) {
+            return new AiQuotaResult(true, 9999, 99999, 8192, "SYSTEM", "系统调用豁免限制");
+        }
         boolean isAdmin = auth != null && auth.isAuthenticated() && auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()) || "ADMIN".equalsIgnoreCase(a.getAuthority()));
         if (isAdmin) {

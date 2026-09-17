@@ -38,6 +38,10 @@ import { ActivityHeatmap } from '@/components/admin/ActivityHeatmap';
 import { QuickActionIsland } from '@/components/admin/QuickActionIsland';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { InspirationQuickNotesCard } from '@/components/admin/dashboard/InspirationQuickNotesCard';
+import { BentoFlipTiltCard } from '@/components/admin/dashboard/BentoFlipTiltCard';
+import { SwipeableTodoCard } from '@/components/admin/dashboard/SwipeableTodoCard';
+import { RealtimeVisitorRadar } from '@/components/admin/dashboard/RealtimeVisitorRadar';
+import { ContentPublishCalendar } from '@/components/admin/dashboard/ContentPublishCalendar';
 
 interface AuditLogItem {
   username?: string;
@@ -386,49 +390,24 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {/* 列表内容区 */}
+          {/* 列表内容区 (支持左右滑动手势消除动效) */}
           <div className="space-y-2.5 min-h-[160px]">
             {todoTab === 'comments' && (
               <>
                 {pendingCommentsList.length > 0 ? (
                   pendingCommentsList.map((item) => (
-                    <div
+                    <SwipeableTodoCard
                       key={item.id}
-                      className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04] flex items-start justify-between gap-3 text-xs transition-all hover:border-slate-300 dark:hover:border-white/[0.12]"
-                    >
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            {item.userNickname || '匿名读者'}
-                          </span>
-                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-                            {item.createdAt ? item.createdAt.replace('T', ' ').slice(0, 16) : ''}
-                          </span>
-                        </div>
-                        <p className="text-slate-700 dark:text-zinc-300 line-clamp-2 leading-relaxed">
-                          {item.content}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleApproveComment(item.id)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span>通过</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRejectComment(item.id)}
-                          className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-medium text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                          <span>拒绝</span>
-                        </button>
-                      </div>
-                    </div>
+                      item={{
+                        id: item.id,
+                        type: 'comment',
+                        title: item.userNickname || '匿名读者',
+                        content: item.content,
+                        createdAt: item.createdAt,
+                      }}
+                      onApprove={handleApproveComment}
+                      onReject={handleRejectComment}
+                    />
                   ))
                 ) : (
                   <div className="py-12 text-center text-xs text-slate-400 dark:text-zinc-500 flex flex-col items-center gap-2">
@@ -443,49 +422,19 @@ export default function AdminDashboardPage() {
               <>
                 {pendingFriendsList.length > 0 ? (
                   pendingFriendsList.map((item) => (
-                    <div
+                    <SwipeableTodoCard
                       key={item.id}
-                      className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04] flex items-start justify-between gap-3 text-xs transition-all hover:border-slate-300 dark:hover:border-white/[0.12]"
-                    >
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            {item.name}
-                          </span>
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11px] text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-0.5 font-mono truncate max-w-xs"
-                          >
-                            <span>{item.url}</span>
-                            <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        </div>
-                        <p className="text-slate-600 dark:text-zinc-400 text-[11px] line-clamp-1">
-                          {item.description || '无站点简介'}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleApproveFriend(item.id)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span>入驻</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRejectFriend(item.id)}
-                          className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-medium text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                          <span>拒绝</span>
-                        </button>
-                      </div>
-                    </div>
+                      item={{
+                        id: item.id,
+                        type: 'friend',
+                        title: item.name,
+                        url: item.url,
+                        content: item.description || '无站点简介',
+                        createdAt: item.createdAt,
+                      }}
+                      onApprove={handleApproveFriend}
+                      onReject={handleRejectFriend}
+                    />
                   ))
                 ) : (
                   <div className="py-12 text-center text-xs text-slate-400 dark:text-zinc-500 flex flex-col items-center gap-2">
@@ -648,92 +597,71 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* 核心指标 Bento 网格 */}
+      {/* 空间指挥中枢 Bento：全景指标动态翻牌计数器与 3D 倾斜光影 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {/* 全部文章 */}
-        <div className="p-4 rounded-2xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm hover:border-slate-300 dark:hover:border-white/[0.16] transition-all space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-medium">全部文章</span>
-            <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {stats?.totalPosts ?? 0}
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-            含中英双语博文
-          </p>
-        </div>
-
-        {/* 已公开发布 */}
-        <div className="p-4 rounded-2xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm hover:border-slate-300 dark:hover:border-white/[0.16] transition-all space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-medium">已公开发布</span>
-            <Send className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-          </div>
-          <div className="text-2xl font-bold text-teal-600 dark:text-teal-400 tracking-tight">
-            {stats?.publishedPosts ?? 0}
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-            全站读者可见
-          </p>
-        </div>
-
-        {/* 草稿箱 */}
-        <div className="p-4 rounded-2xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm hover:border-slate-300 dark:hover:border-white/[0.16] transition-all space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-medium">草稿箱</span>
-            <FileEdit className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 tracking-tight">
-            {stats?.draftPosts ?? 0}
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-            创作与派生译文中
-          </p>
-        </div>
-
-        {/* 开源项目 */}
-        <div className="p-4 rounded-2xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm hover:border-slate-300 dark:hover:border-white/[0.16] transition-all space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-medium">精选项目</span>
-            <FolderGit2 className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {stats?.totalProjects ?? 0}
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-            精选工程矩阵
-          </p>
-        </div>
-
-        {/* 航海足迹 */}
-        <div className="p-4 rounded-2xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm hover:border-slate-300 dark:hover:border-white/[0.16] transition-all space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-medium">航海足迹</span>
-            <Plane className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {stats?.totalJourneys ?? 0}
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-            全球探索坐标
-          </p>
-        </div>
-
-        {/* 全站总阅读 */}
-        <div className="p-4 rounded-2xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm hover:border-slate-300 dark:hover:border-white/[0.16] transition-all space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-medium">全站总阅读</span>
-            <Eye className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-          </div>
-          <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 tracking-tight">
-            {stats?.totalViews ?? 0}
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-            累计博文 PV 浏览
-          </p>
-        </div>
+        <BentoFlipTiltCard
+          title="全部文章"
+          value={stats?.totalPosts ?? 0}
+          icon={FileText}
+          description="含中英双语博文"
+          accentColor="emerald"
+        />
+        <BentoFlipTiltCard
+          title="已公开发布"
+          value={stats?.publishedPosts ?? 0}
+          icon={Send}
+          description="全站读者可见"
+          accentColor="teal"
+          subBadge="PUBLIC"
+        />
+        <BentoFlipTiltCard
+          title="草稿手稿"
+          value={stats?.draftPosts ?? 0}
+          icon={FileEdit}
+          description="创作与派生译文中"
+          accentColor="amber"
+          subBadge="DRAFT"
+        />
+        <BentoFlipTiltCard
+          title="精选项目"
+          value={stats?.totalProjects ?? 0}
+          icon={FolderGit2}
+          description="精选工程矩阵"
+          accentColor="cyan"
+        />
+        <BentoFlipTiltCard
+          title="航海足迹"
+          value={stats?.totalJourneys ?? 0}
+          icon={Plane}
+          description="全球探索坐标"
+          accentColor="indigo"
+        />
+        <BentoFlipTiltCard
+          title="全站总阅读"
+          value={stats?.totalViews ?? 0}
+          icon={Eye}
+          description="累计博文 PV 浏览"
+          accentColor="rose"
+        />
       </div>
+
+      {/* WebSocket / SSE 实时访客足迹雷达 */}
+      <RealtimeVisitorRadar />
+
+      {/* 周/月双重视角发文排期日历 (Content Calendar) */}
+      <ContentPublishCalendar
+        posts={
+          stats?.recentPosts?.map((p) => ({
+            id: p.id,
+            title: p.title,
+            slug: p.slug,
+            status: p.status,
+            viewCount: p.viewCount,
+            publishedAt: (p as any).publishedAt || (p as any).createdAt,
+          })) || []
+        }
+        draftsCount={stats?.draftPosts ?? 0}
+      />
 
       {/* 活跃热力图 + 最近动态流 (Mission Log) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

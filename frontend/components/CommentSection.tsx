@@ -8,7 +8,7 @@ import { useI18n } from '@/lib/i18n';
 import { AuthModal } from './AuthModal';
 import { SafeImage } from './SafeImage';
 import { DEFAULT_AVATAR } from '@/lib/media-defaults';
-import { toast } from '@/lib/toast';
+import { toast, confirmModal } from '@/lib/toast';
 import { UnifiedLikeButton } from '@/components/ui/UnifiedLikeButton';
 import { 
   MessageSquare, 
@@ -138,7 +138,14 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
   };
 
   const handleDeleteComment = async (id: number) => {
-    if (!window.confirm(isEn ? 'Are you sure you want to delete this comment?' : '确定要撤回/删除这条评论吗？')) {
+    const confirmed = await confirmModal({
+      title: isEn ? 'Delete Comment' : '删除评论确认',
+      message: isEn ? 'Are you sure you want to delete this comment? This action cannot be undone.' : '确定要撤回/删除这条评论吗？此操作不可撤销。',
+      confirmText: isEn ? 'Delete' : '确认删除',
+      cancelText: isEn ? 'Cancel' : '取消',
+      variant: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
     try {

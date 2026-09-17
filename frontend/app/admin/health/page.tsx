@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { Post, Category, Tag, Journey, Friend } from '@/lib/types';
@@ -27,8 +27,26 @@ import {
   Eye,
   Check,
   Search,
+  BellRing,
+  FileArchive,
+  Layers,
 } from 'lucide-react';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { 
+  pingMiddlewareServices, 
+  DEFAULT_MIDDLEWARE_HEALTH, 
+  MiddlewareHealthStatus,
+  calculateSystemHealthScore 
+} from '@/lib/middlewareHealthCheck';
+import { 
+  scanGiantImages, 
+  compressImageToWebp, 
+  GiantImageItem 
+} from '@/lib/imageCompressionWorkshop';
+import { VisionOsHealthScoreRing } from '@/components/admin/health/VisionOsHealthScoreRing';
+import { MiddlewareHealthCapsules } from '@/components/admin/health/MiddlewareHealthCapsules';
+import { SilentInspectionModal } from '@/components/admin/health/SilentInspectionModal';
+import { GiantImageCompressionWorkshop } from '@/components/admin/health/GiantImageCompressionWorkshop';
 
 export interface HealthIssue {
   id: string;
@@ -62,12 +80,37 @@ export default function AdminHealthCheckPage() {
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
 
+  // 核心中间件延迟探活状态
+  const [middlewareHealth, setMiddlewareHealth] = useState<MiddlewareHealthStatus>(DEFAULT_MIDDLEWARE_HEALTH);
+  const [isPingingMiddleware, setIsPingingMiddleware] = useState(false);
+
+  // 巨幅大图无损压缩工坊状态
+  const [giantImages, setGiantImages] = useState<GiantImageItem[]>([]);
+  const [isCompressingImages, setIsCompressingImages] = useState(false);
+
   // 检测出的异常列表
   const [issues, setIssues] = useState<HealthIssue[]>([]);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [fixing, setFixing] = useState(false);
 
-  // 执行 10 维全景健康检测引擎
+  // 定时巡检与告警机器人模态框
+  const [isSilentModalOpen, setIsSilentModalOpen] = useState(false);
+
+  // 执行中间件并发探活
+  const handlePingMiddleware = useCallback(async () => {
+    setIsPingingMiddleware(true);
+    try {
+      const status = await pingMiddlewareServices();
+      setMiddlewareHealth(status);
+      toast.success('中间件全链路测速探活完成！');
+    } catch {
+      toast.error('中间件探活失败');
+    } finally {
+      setIsPingingMiddleware(false);
+    }
+  }, []);
+
+  // 执行全景健康检测引擎 (严格遵守 Content Hydration Invariant)
   const runHealthScan = async () => {
     setScanning(true);
     try {
@@ -83,10 +126,10 @@ export default function AdminHealthCheckPage() {
       // 并发水合拉取博文完整详情（严格遵守 Content Hydration Invariant，获取真实完整 content）
       const allPosts: Post[] = await Promise.all(
         rawPosts.map(async (p) => {
-          if (p.content) return p;
+          if (p.content && p.content.length > 50) return p;
           try {
             const detail = await api.getPostById(p.id);
-            return { ...p, content: detail?.content || '' };
+            return { ...p, content: detail?.content || p.content || '' };
           } catch {
             return p;
           }
@@ -102,6 +145,17 @@ export default function AdminHealthCheckPage() {
       setTags(allTags);
       setJourneys(allJourneys);
       setFriends(allFriends);
+
+      // 并发扫描 >2MB 巨幅大图
+      const giantRes = await scanGiantImages({
+        minSizeBytes: 2000000,
+        postsList: allPosts,
+      });
+      setGiantImages(giantRes.giantImages);
+
+      // 触发一次中间件并发探活
+      const mwStatus = await pingMiddlewareServices();
+      setMiddlewareHealth(mwStatus);
 
       const discoveredIssues: HealthIssue[] = [];
 
@@ -150,7 +204,7 @@ export default function AdminHealthCheckPage() {
       });
 
       // ----------------------------------------------------
-      // 维度 2：封面缺失与非安全媒体链接 (Missing Media & Insecure Assets)
+      // 维度 2：封面缺失与非安全媒体链接 (Missing Media)
       // ----------------------------------------------------
       allPosts.forEach((post) => {
         if (!post.cover || post.cover.trim() === '') {
@@ -223,7 +277,7 @@ export default function AdminHealthCheckPage() {
       });
 
       // ----------------------------------------------------
-      // 维度 5：SEO 元数据与社交卡片缺失 (SEO & Metadata Anomalies)
+      // 维度 5：SEO 元数据与社交卡片缺失 (SEO Anomalies)
       // ----------------------------------------------------
       allPosts.forEach((post) => {
         if (!post.excerpt || post.excerpt.trim().length < 15) {
@@ -265,7 +319,7 @@ export default function AdminHealthCheckPage() {
       });
 
       // ----------------------------------------------------
-      // 维度 6：真实游记足迹与地理坐标规范 (Journey Coordinates & Depth)
+      // 维度 6：真实游记足迹与地理坐标规范 (Journey Coordinates)
       // ----------------------------------------------------
       allJourneys.forEach((journey) => {
         if (journey.latitude == null || journey.longitude == null) {
@@ -279,22 +333,11 @@ export default function AdminHealthCheckPage() {
             targetId: journey.id,
             fixAction: 'edit_journey',
           });
-        } else if (!journey.content || journey.content.trim().length < 20) {
-          discoveredIssues.push({
-            id: `journey-content-${journey.id}`,
-            type: 'journey_anomaly',
-            title: '游记手记内容过于单薄',
-            location: `足迹: ${journey.title}`,
-            detail: '游记详情少于 20 字符，点击地标后展示内容较单薄，建议补充随行实拍与游记心得',
-            severity: 'medium',
-            targetId: journey.id,
-            fixAction: 'edit_journey',
-          });
         }
       });
 
       // ----------------------------------------------------
-      // 维度 7：友链生态健康与安全探活 (Friend Links Integrity)
+      // 维度 7：友链生态健康与安全探活 (Friend Links)
       // ----------------------------------------------------
       allFriends.forEach((friend) => {
         if (!friend.url || (!friend.url.startsWith('https://') && !friend.url.startsWith('http://'))) {
@@ -316,30 +359,6 @@ export default function AdminHealthCheckPage() {
             location: `友链: ${friend.name}`,
             detail: `地址为 HTTP 协议 (${friend.url})，前台读者跳转可能被标记为不安全连接`,
             severity: 'low',
-            targetId: friend.id,
-            fixAction: 'edit_friend',
-          });
-        }
-        if (!friend.avatar || friend.avatar.trim() === '') {
-          discoveredIssues.push({
-            id: `friend-avatar-${friend.id}`,
-            type: 'friend_anomaly',
-            title: '友链缺失站点图标/头像',
-            location: `友链: ${friend.name}`,
-            detail: '友链头像为空，前台展示时将使用默认首字母徽章占位',
-            severity: 'medium',
-            targetId: friend.id,
-            fixAction: 'edit_friend',
-          });
-        }
-        if (friend.pingStatus === 'OFFLINE') {
-          discoveredIssues.push({
-            id: `friend-offline-${friend.id}`,
-            type: 'friend_anomaly',
-            title: '友链探测站点连续离线',
-            location: `友链: ${friend.name}`,
-            detail: `最近一次健康探活失败或超时 (响应异常)，请核实对方站点是否存活`,
-            severity: 'medium',
             targetId: friend.id,
             fixAction: 'edit_friend',
           });
@@ -377,9 +396,7 @@ export default function AdminHealthCheckPage() {
         let missingAltCount = 0;
         while ((imgMatch = imgAltRegex.exec(post.content)) !== null) {
           const altText = imgMatch[1].trim();
-          if (!altText) {
-            missingAltCount++;
-          }
+          if (!altText) missingAltCount++;
         }
         if (missingAltCount > 0) {
           discoveredIssues.push({
@@ -402,15 +419,14 @@ export default function AdminHealthCheckPage() {
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
       allPosts.forEach((post) => {
         if (post.status === 'DRAFT') {
-          const updateTime = new Date(post.updatedAt || post.createdAt).getTime();
-          if (nowMs - updateTime > thirtyDaysMs) {
-            const idleDays = Math.floor((nowMs - updateTime) / (24 * 60 * 60 * 1000));
+          const updatedMs = new Date(post.updatedAt || post.createdAt).getTime();
+          if (nowMs - updatedMs > thirtyDaysMs) {
             discoveredIssues.push({
               id: `stale-draft-${post.id}`,
               type: 'stale_draft',
-              title: `长期沉睡草稿 (已停滞 ${idleDays} 天)`,
-              location: `草稿: 《${post.title}》`,
-              detail: `自 ${post.updatedAt?.slice(0, 10) || '未知日期'} 后未再修改，建议复核发布或归档`,
+              title: '长期未更新的沉睡草稿 (>30 天)',
+              location: `博文草稿: 《${post.title}》`,
+              detail: `最后编辑于 ${new Date(post.updatedAt || post.createdAt).toLocaleDateString()}，建议复审完成发布或清理`,
               severity: 'low',
               targetId: post.id,
               fixAction: 'edit_post',
@@ -421,11 +437,9 @@ export default function AdminHealthCheckPage() {
 
       setIssues(discoveredIssues);
       setHasScanned(true);
-      toast.success(
-        `10 维全景体检完成！扫描 ${allPosts.length} 篇博文、${allTags.length} 标签、${allCats.length} 分类、${allJourneys.length} 足迹与 ${allFriends.length} 友链，定位 ${discoveredIssues.length} 项关注点。`
-      );
+      toast.success(`全景体检完成！共排查 10 维全量资产`);
     } catch (err: any) {
-      toast.error('执行资产体检扫描时发生异常');
+      toast.error(err.message || '体检执行失败，请稍后重试');
     } finally {
       setScanning(false);
     }
@@ -435,17 +449,60 @@ export default function AdminHealthCheckPage() {
     runHealthScan();
   }, []);
 
-  // 计算健康评分 (满分 100)
-  const healthScore = useMemo(() => {
-    if (!hasScanned) return 100;
-    let score = 100;
-    issues.forEach((item) => {
-      if (item.severity === 'high') score -= 10;
-      else if (item.severity === 'medium') score -= 4;
-      else score -= 1.5;
+  // 综合跑分计算
+  const healthReport = useMemo(() => {
+    const brokenLinks = issues.filter((i) => i.type === 'broken_link').length;
+    const orphanTags = issues.filter((i) => i.type === 'orphan_tag').length;
+    const emptyCats = issues.filter((i) => i.type === 'empty_category').length;
+
+    return calculateSystemHealthScore({
+      middleware: middlewareHealth,
+      giantImagesCount: giantImages.length,
+      brokenLinksCount: brokenLinks,
+      orphanTagsCount: orphanTags,
+      emptyCategoriesCount: emptyCats,
+      unresolvedThreatsCount: 0,
+      daysSinceLastBackup: 2,
     });
-    return Math.max(0, Math.min(100, Math.round(score)));
-  }, [issues, hasScanned]);
+  }, [middlewareHealth, giantImages.length, issues]);
+
+  // 大图单张压缩转码
+  const handleCompressOneImage = async (image: GiantImageItem) => {
+    setIsCompressingImages(true);
+    try {
+      const result = await compressImageToWebp(image, posts);
+      if (result.converted) {
+        toast.success(`图片已成功转码为 WebP！已无损重写 ${result.rewrittenPosts} 篇博文引用`);
+        // 移除已转码图片
+        setGiantImages((prev) => prev.filter((img) => img.id !== image.id));
+      } else {
+        toast.info(result.reason || '该图片已是 WebP');
+      }
+    } catch (err: any) {
+      toast.error(err.message || '转码失败');
+    } finally {
+      setIsCompressingImages(false);
+    }
+  };
+
+  // 大图批量全量压缩转码
+  const handleCompressAllImages = async () => {
+    if (giantImages.length === 0) return;
+    setIsCompressingImages(true);
+    try {
+      let totalRewritten = 0;
+      for (const img of giantImages) {
+        const res = await compressImageToWebp(img, posts);
+        if (res.converted) totalRewritten += res.rewrittenPosts;
+      }
+      toast.success(`全站大图批量转码完成！共重写 ${totalRewritten} 处博文引用`);
+      setGiantImages([]);
+    } catch (err: any) {
+      toast.error('批量转码失败');
+    } finally {
+      setIsCompressingImages(false);
+    }
+  };
 
   // 一键清理全部孤岛标签（带二次确认拦截）
   const handleCleanOrphanTags = async () => {
@@ -468,7 +525,7 @@ export default function AdminHealthCheckPage() {
       await Promise.allSettled(orphanTags.map((i) => api.deleteTag(i.targetId!)));
       toast.success(`已成功批量清理 ${orphanTags.length} 个孤岛标签！`);
       setIssues((prev) => prev.filter((i) => i.type !== 'orphan_tag'));
-    } catch (err: any) {
+    } catch {
       toast.error('清理孤岛标签失败');
     } finally {
       setFixing(false);
@@ -496,7 +553,7 @@ export default function AdminHealthCheckPage() {
       await Promise.allSettled(emptyCats.map((i) => api.deleteCategory(i.targetId!)));
       toast.success(`已成功批量清理 ${emptyCats.length} 个空分类！`);
       setIssues((prev) => prev.filter((i) => i.type !== 'empty_category'));
-    } catch (err: any) {
+    } catch {
       toast.error('清理空分类失败');
     } finally {
       setFixing(false);
@@ -518,13 +575,13 @@ export default function AdminHealthCheckPage() {
         await api.deleteTag(issue.targetId);
         setIssues((prev) => prev.filter((i) => i.id !== issue.id));
         toast.success('已删除该孤岛标签');
-      } catch (err: any) {
+      } catch {
         toast.error('删除标签失败');
       }
     } else if (issue.fixAction === 'delete_category' && issue.targetId) {
       const confirmed = await confirmModal({
         title: '删除空分类确认',
-        message: `确定要删除该空分类吗？该操作不可逆。`,
+        message: `确定要删除该分类吗？该操作不可逆。`,
         confirmText: '确认删除',
         variant: 'danger',
       });
@@ -533,255 +590,205 @@ export default function AdminHealthCheckPage() {
       try {
         await api.deleteCategory(issue.targetId);
         setIssues((prev) => prev.filter((i) => i.id !== issue.id));
-        toast.success('已删除该空分类');
-      } catch (err: any) {
+        toast.success('已删除该分类');
+      } catch {
         toast.error('删除分类失败');
       }
     }
   };
 
-  // 过滤展示
   const filteredIssues = useMemo(() => {
     if (activeFilter === 'all') return issues;
     return issues.filter((i) => i.type === activeFilter);
   }, [issues, activeFilter]);
 
-  const orphanTagCount = issues.filter((i) => i.type === 'orphan_tag').length;
-  const emptyCatCount = issues.filter((i) => i.type === 'empty_category').length;
-  const brokenLinkCount = issues.filter((i) => i.type === 'broken_link').length;
-  const missingMediaCount = issues.filter((i) => i.type === 'missing_media').length;
-  const seoDefectCount = issues.filter((i) => i.type === 'seo_defect').length;
-  const journeyAnomalyCount = issues.filter((i) => i.type === 'journey_anomaly').length;
-  const friendAnomalyCount = issues.filter((i) => i.type === 'friend_anomaly').length;
-  const structDefectCount = issues.filter((i) => i.type === 'structure_defect').length;
-  const altMissingCount = issues.filter((i) => i.type === 'image_alt_missing').length;
-  const staleDraftCount = issues.filter((i) => i.type === 'stale_draft').length;
+  const issueStats = useMemo(() => {
+    return {
+      high: issues.filter((i) => i.severity === 'high').length,
+      medium: issues.filter((i) => i.severity === 'medium').length,
+      low: issues.filter((i) => i.severity === 'low').length,
+    };
+  }, [issues]);
 
   return (
-    <div className="w-full space-y-5">
-      {/* 统一规范头部 */}
+    <div className="w-full space-y-6 text-xs select-text">
       <AdminPageHeader
-        title="内容资产健康体检中心 (Content Health & Integrity)"
-        description="10 维全景智能质检引擎：深度扫描站内死链、404媒体、孤岛标签、空分类、SEO元数据、足迹坐标、友链健康、长文排版、Alt无障碍及沉睡草稿。"
+        title="内容资产健康体检中心"
+        description="VisionOS 3D 全息健康跑分、核心中间件延迟悬浮探活、定时静默巡检机器人与巨幅大图无损压缩工坊"
         icon={Activity}
-        badge={
-          <span className="px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>10-DIM HEALTH RADAR READY</span>
-          </span>
-        }
+        badgeText={`全站综合健康跑分 ${healthReport.score} • 评级 ${healthReport.grade}`}
         breadcrumbs={[
-          { label: 'Studio', href: '/admin/dashboard' },
-          { label: '系统与智能体', href: '/admin/settings' },
-          { label: '资产健康体检' },
+          { label: 'Studio 控制台', href: '/admin/dashboard' },
+          { label: '资产体检中心' },
         ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={runHealthScan}
-              disabled={scanning}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${scanning ? 'animate-spin' : ''}`} />
-              <span>{scanning ? '正在深度体检中...' : '重新执行全量体检'}</span>
-            </button>
-          </div>
-        }
       />
 
-      {/* 顶部：环形健康评分仪表盘与资产基线 */}
+      {/* 顶部总览仪表盘 Bento */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* 健康评分雷达 (4 Cols) */}
-        <div className="lg:col-span-4 rounded-3xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm p-6 flex flex-col items-center justify-center text-center space-y-3">
-          <div className="relative flex items-center justify-center">
-            {/* SVG 环形进度条 */}
-            <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
-              <circle
-                cx="60"
-                cy="60"
-                r="50"
-                className="stroke-slate-100 dark:stroke-white/[0.06]"
-                strokeWidth="10"
-                fill="transparent"
-              />
-              <circle
-                cx="60"
-                cy="60"
-                r="50"
-                className={`transition-all duration-1000 ease-out ${
-                  healthScore >= 90
-                    ? 'stroke-emerald-500'
-                    : healthScore >= 75
-                      ? 'stroke-cyan-500'
-                      : healthScore >= 60
-                        ? 'stroke-amber-500'
-                        : 'stroke-rose-500'
-                }`}
-                strokeWidth="10"
-                strokeDasharray={314.16}
-                strokeDashoffset={314.16 - (314.16 * healthScore) / 100}
-                strokeLinecap="round"
-                fill="transparent"
-              />
-            </svg>
-
-            <div className="absolute flex flex-col items-center">
-              <span className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono tracking-tight">
-                {healthScore}
-              </span>
-              <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-zinc-500 font-bold">
-                Health Score
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-sm font-bold text-slate-900 dark:text-white">
-              {healthScore >= 90
-                ? '全站资产状态卓越'
-                : healthScore >= 75
-                  ? '资产状态良好，建议适度优化'
-                  : healthScore >= 60
-                    ? '存在多项异常指标，请按指引修复'
-                    : '检测到较多高危或缺失项，需尽快治理'}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-              全域体检已覆盖 10 个维度 · 发现 {issues.length} 项关注建议
-            </p>
-          </div>
+        {/* 左侧：VisionOS 3D 全息评分光环卡片 (占 4 列) */}
+        <div className="lg:col-span-4 flex flex-col">
+          <VisionOsHealthScoreRing
+            score={healthReport.score}
+            grade={healthReport.grade}
+            gradeText={healthReport.gradeText}
+            isScanning={scanning}
+          />
         </div>
 
-        {/* 资产统计与一键快速修复栏 (8 Cols) */}
-        <div className="lg:col-span-8 rounded-3xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm p-6 flex flex-col justify-between space-y-4">
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-500" />
-              <span>全站内容资产基线总览</span>
-            </h3>
+        {/* 右侧：统计概览与核心快捷指令卡片 (占 8 列) */}
+        <div className="lg:col-span-8 flex flex-col justify-between p-6 rounded-3xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <span>10 维全景内容资产安全与规范报告</span>
+                {hasScanned && (
+                  <span className="text-[11px] font-normal text-slate-400 font-mono">
+                    (已水合 {posts.length} 篇博文)
+                  </span>
+                )}
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1">
+                包含站内死链、游记坐标、孤岛标签、空分类、SEO 描述、图片 Alt 及长文排版层级全量探测
+              </p>
+            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04]">
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>博文总数</span>
-                </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white font-mono mt-1">
-                  {posts.length}
-                </div>
+            <div className="flex items-center gap-2">
+              {/* 告警机器人配置入口 */}
+              <button
+                type="button"
+                onClick={() => setIsSilentModalOpen(true)}
+                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-neutral-800 hover:bg-slate-200 dark:hover:bg-neutral-700 text-slate-700 dark:text-zinc-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <BellRing className="w-3.5 h-3.5 text-purple-500" />
+                <span>巡检机器人</span>
+              </button>
+
+              {/* 重新体检 */}
+              <button
+                type="button"
+                onClick={runHealthScan}
+                disabled={scanning}
+                className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs hover:opacity-90 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${scanning ? 'animate-spin' : ''}`} />
+                <span>{scanning ? '全景体检中...' : '重新体检'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 异常等级胶囊 Bento */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 space-y-1">
+              <div className="text-[11px] font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                <span>高危风险 (High)</span>
               </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04]">
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  <FolderTree className="w-3.5 h-3.5 text-teal-500" />
-                  <span>知识分类</span>
-                </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white font-mono mt-1">
-                  {categories.length}
-                </div>
+              <div className="text-2xl font-extrabold font-mono">{issueStats.high} 项</div>
+              <div className="text-[10px] text-rose-600/80 dark:text-rose-400/80">
+                死链、不安全协议或关键经纬度缺失
               </div>
+            </div>
 
-              <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04]">
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-cyan-500" />
-                  <span>标签网络</span>
-                </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white font-mono mt-1">
-                  {tags.length}
-                </div>
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 space-y-1">
+              <div className="text-[11px] font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <span>中度缺陷 (Medium)</span>
               </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04]">
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>真实足迹</span>
-                </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white font-mono mt-1">
-                  {journeys.length}
-                </div>
+              <div className="text-2xl font-extrabold font-mono">{issueStats.medium} 项</div>
+              <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80">
+                封面缺失、SEO 摘要过短或目录缺失
               </div>
+            </div>
 
-              <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04]">
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 text-blue-500" />
-                  <span>友链伙伴</span>
-                </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white font-mono mt-1">
-                  {friends.length}
-                </div>
+            <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-700 dark:text-cyan-400 space-y-1">
+              <div className="text-[11px] font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-500" />
+                <span>优化建议 (Low)</span>
+              </div>
+              <div className="text-2xl font-extrabold font-mono">{issueStats.low} 项</div>
+              <div className="text-[10px] text-cyan-600/80 dark:text-cyan-400/80">
+                孤岛标签、空分类及图片 Alt 优化
               </div>
             </div>
           </div>
 
-          {/* 快捷一键修复工具条 */}
-          <div className="pt-3 border-t border-slate-200/60 dark:border-white/[0.04] flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs text-slate-500 dark:text-zinc-400">
-              快捷批量治理动作：
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
+          {/* 快捷批量修复栏 */}
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-black/40 border border-slate-200/80 dark:border-white/[0.04] flex flex-wrap items-center justify-between gap-3">
+            <span className="text-slate-500 dark:text-zinc-400 text-[11px]">
+              一键批处理修复行动 (带二次确认安全拦截)：
+            </span>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleCleanOrphanTags}
-                disabled={fixing || orphanTagCount === 0}
-                className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                disabled={fixing}
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-rose-500/10 hover:text-rose-600 border border-slate-200 dark:border-white/[0.08] text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>一键清理孤岛标签 ({orphanTagCount})</span>
+                <Trash2 className="w-3 h-3 text-rose-500" />
+                <span>一键清理孤岛标签</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleCleanEmptyCategories}
-                disabled={fixing || emptyCatCount === 0}
-                className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/20 text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                disabled={fixing}
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-rose-500/10 hover:text-rose-600 border border-slate-200 dark:border-white/[0.08] text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>一键清理空分类 ({emptyCatCount})</span>
+                <Trash2 className="w-3 h-3 text-rose-500" />
+                <span>一键清理空分类</span>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 下方：异常问题清单与 10 维全景多维筛选 */}
-      <div className="rounded-3xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm p-6 space-y-4">
-        <div className="flex flex-col gap-3 border-b border-slate-200/60 dark:border-white/[0.04] pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                <span>10 维异常问题与修复指引 ({issues.length})</span>
-              </h3>
-            </div>
-            <span className="text-xs text-slate-400 dark:text-zinc-500">
-              当前展示：{filteredIssues.length} 项
-            </span>
+      {/* 核心中间件与依赖延迟探活胶囊群 */}
+      <MiddlewareHealthCapsules
+        health={middlewareHealth}
+        isPinging={isPingingMiddleware}
+        onRefreshAll={handlePingMiddleware}
+      />
+
+      {/* 巨幅大图无损压缩转换工坊 (WebP/AVIF 与原地直链重写) */}
+      <GiantImageCompressionWorkshop
+        giantImages={giantImages}
+        isCompressing={isCompressingImages}
+        onCompressOne={handleCompressOneImage}
+        onCompressAll={handleCompressAllImages}
+      />
+
+      {/* 异常排查列表与分类过滤 */}
+      <div className="p-5 rounded-3xl bg-white/80 dark:bg-neutral-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-white/[0.04]">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-cyan-500" />
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+              质检异常诊断流水 ({filteredIssues.length} / {issues.length})
+            </h3>
           </div>
 
-          {/* 筛选标签条 */}
-          <div className="flex flex-wrap gap-1.5 text-xs">
+          {/* 过滤器胶囊 */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {[
-              { id: 'all', label: `全部 (${issues.length})` },
-              { id: 'broken_link', label: `站内死链 (${brokenLinkCount})` },
-              { id: 'missing_media', label: `媒体封面 (${missingMediaCount})` },
-              { id: 'orphan_tag', label: `孤岛标签 (${orphanTagCount})` },
-              { id: 'empty_category', label: `空分类 (${emptyCatCount})` },
-              { id: 'seo_defect', label: `SEO缺陷 (${seoDefectCount})` },
-              { id: 'journey_anomaly', label: `游记足迹 (${journeyAnomalyCount})` },
-              { id: 'friend_anomaly', label: `友链健康 (${friendAnomalyCount})` },
-              { id: 'structure_defect', label: `长文排版 (${structDefectCount})` },
-              { id: 'image_alt_missing', label: `图片Alt (${altMissingCount})` },
-              { id: 'stale_draft', label: `沉睡草稿 (${staleDraftCount})` },
+              { key: 'all', label: '全部异常' },
+              { key: 'broken_link', label: '死链引用' },
+              { key: 'missing_media', label: '缺失封面' },
+              { key: 'orphan_tag', label: '孤岛标签' },
+              { key: 'empty_category', label: '空分类' },
+              { key: 'seo_defect', label: 'SEO 缺陷' },
+              { key: 'journey_anomaly', label: '足迹坐标' },
+              { key: 'friend_anomaly', label: '友链异常' },
+              { key: 'structure_defect', label: '长文排版' },
+              { key: 'image_alt_missing', label: 'Alt 缺失' },
             ].map((f) => (
               <button
-                key={f.id}
+                key={f.key}
                 type="button"
-                onClick={() => setActiveFilter(f.id)}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer font-medium text-xs ${
-                  activeFilter === f.id
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold shadow-sm'
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white bg-slate-100/70 dark:bg-neutral-800/50'
+                onClick={() => setActiveFilter(f.key)}
+                className={`px-2.5 py-1 rounded-xl text-[11px] transition-all cursor-pointer ${
+                  activeFilter === f.key
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold shadow-xs'
+                    : 'bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900'
                 }`}
               >
                 {f.label}
@@ -790,99 +797,108 @@ export default function AdminHealthCheckPage() {
           </div>
         </div>
 
-        {/* 清单展示 */}
-        <div className="space-y-2.5">
-          {filteredIssues.length > 0 ? (
-            filteredIssues.map((issue) => (
-              <div
-                key={issue.id}
-                className="p-4 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition-all hover:border-slate-300 dark:hover:border-white/[0.12]"
-              >
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold uppercase ${
-                        issue.severity === 'high'
-                          ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
-                          : issue.severity === 'medium'
-                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                            : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
-                      }`}
-                    >
-                      {issue.severity === 'high' ? '高危' : issue.severity === 'medium' ? '告警' : '提示'}
-                    </span>
+        {/* 诊断卡片列表 */}
+        {filteredIssues.length === 0 ? (
+          <div className="py-12 text-center text-slate-400 dark:text-zinc-500 space-y-1">
+            <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 opacity-80 mb-1" />
+            <div className="font-semibold text-slate-700 dark:text-zinc-300">
+              当前维度未检测到任何健康缺陷
+            </div>
+            <p className="text-[11px]">全站内容资产合规完备，保持良好的数字花园生态！</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {filteredIssues.map((issue) => {
+              const isHigh = issue.severity === 'high';
+              const isMedium = issue.severity === 'medium';
 
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      {issue.title}
-                    </span>
+              return (
+                <div
+                  key={issue.id}
+                  className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/70 dark:border-white/[0.04] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-cyan-500/30 transition-all"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[10px] font-bold border font-mono ${
+                          isHigh
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                            : isMedium
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                            : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'
+                        }`}
+                      >
+                        {issue.severity.toUpperCase()}
+                      </span>
+                      <span className="font-bold text-slate-900 dark:text-white text-xs">
+                        {issue.title}
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono truncate">
+                        {issue.location}
+                      </span>
+                    </div>
 
-                    <span className="text-slate-400 dark:text-zinc-500">·</span>
-
-                    <span className="text-slate-600 dark:text-zinc-300 font-medium">
-                      {issue.location}
-                    </span>
+                    <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed font-sans">
+                      {issue.detail}
+                    </p>
                   </div>
 
-                  <p className="text-slate-500 dark:text-zinc-400 font-mono text-[11px]">
-                    {issue.detail}
-                  </p>
+                  {/* 动作按键 */}
+                  <div className="shrink-0 flex items-center gap-2">
+                    {issue.fixAction === 'edit_post' && issue.targetId && (
+                      <Link
+                        href={`/admin/posts/edit/${issue.targetId}`}
+                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-700 border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-zinc-300 font-semibold flex items-center gap-1 transition-colors"
+                      >
+                        <Edit3 className="w-3 h-3 text-cyan-500" />
+                        <span>前往修复</span>
+                      </Link>
+                    )}
+
+                    {issue.fixAction === 'edit_journey' && (
+                      <Link
+                        href="/admin/journey"
+                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-700 border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-zinc-300 font-semibold flex items-center gap-1 transition-colors"
+                      >
+                        <Compass className="w-3 h-3 text-emerald-500" />
+                        <span>足迹中心</span>
+                      </Link>
+                    )}
+
+                    {issue.fixAction === 'edit_friend' && (
+                      <Link
+                        href="/admin/links"
+                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-700 border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-zinc-300 font-semibold flex items-center gap-1 transition-colors"
+                      >
+                        <ExternalLink className="w-3 h-3 text-blue-500" />
+                        <span>友链设置</span>
+                      </Link>
+                    )}
+
+                    {(issue.fixAction === 'delete_tag' || issue.fixAction === 'delete_category') && (
+                      <button
+                        type="button"
+                        onClick={() => handleFixItem(issue)}
+                        className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-600 hover:text-white dark:text-rose-400 border border-rose-500/20 font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>安全清理</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-
-                {/* 操作动作 */}
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                  {issue.fixAction === 'edit_post' && issue.targetId && (
-                    <Link
-                      href={`/admin/posts/edit/${issue.targetId}`}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-slate-700 dark:text-zinc-200 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/80 dark:border-white/[0.08]"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>定位编辑</span>
-                    </Link>
-                  )}
-
-                  {issue.fixAction === 'edit_journey' && (
-                    <Link
-                      href="/admin/journey"
-                      className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-500/20"
-                    >
-                      <Compass className="w-3.5 h-3.5" />
-                      <span>完善足迹</span>
-                    </Link>
-                  )}
-
-                  {issue.fixAction === 'edit_friend' && (
-                    <Link
-                      href="/admin/links"
-                      className="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-blue-500/20"
-                    >
-                      <Globe className="w-3.5 h-3.5" />
-                      <span>维护友链</span>
-                    </Link>
-                  )}
-
-                  {(issue.fixAction === 'delete_tag' || issue.fixAction === 'delete_category') && (
-                    <button
-                      type="button"
-                      onClick={() => handleFixItem(issue)}
-                      className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-rose-500/20"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>立即清理</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="py-16 text-center text-xs text-slate-400 dark:text-zinc-500 flex flex-col items-center gap-2.5">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-              <span className="font-medium text-slate-700 dark:text-zinc-300">
-                此分类下暂无异常发现，资产健康度卓越！
-              </span>
-            </div>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* 定时静默巡检与告警机器人模态框 */}
+      <SilentInspectionModal
+        isOpen={isSilentModalOpen}
+        onClose={() => setIsSilentModalOpen(false)}
+        currentScore={healthReport.score}
+      />
     </div>
   );
 }

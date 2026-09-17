@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
+const isStandalone = process.env.BUILD_STANDALONE === 'true' || process.platform !== 'win32';
+
 const nextConfig = {
-  output: 'standalone',
+  ...(isStandalone ? { output: 'standalone' } : {}),
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },

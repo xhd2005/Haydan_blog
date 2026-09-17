@@ -34,6 +34,7 @@ import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { triggerRevalidate } from '@/components/admin/revalidate';
 import { AiPostCurationToolbar } from '@/components/admin/AiPostCurationToolbar';
 import { BilingualTranslationStudioModal } from '@/components/admin/BilingualTranslationStudioModal';
+import { BilingualSplitEditor } from '@/components/admin/posts/BilingualSplitEditor';
 import { normalizeMediaUrl } from '@/lib/media-url';
 
 export default function CreatePostPage() {
@@ -56,6 +57,9 @@ export default function CreatePostPage() {
   const [candidatePosts, setCandidatePosts] = useState<any[]>([]);
   const [aiRadarJson, setAiRadarJson] = useState('');
   const [translateStudioOpen, setTranslateStudioOpen] = useState(false);
+  const [bilingualMode, setBilingualMode] = useState(false);
+  const [enTitle, setEnTitle] = useState('');
+  const [enContent, setEnContent] = useState('');
 
   // 发布属性抽屉展开状态 (桌面端默认展开，随时配置封面与分类标签)
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -221,6 +225,21 @@ export default function CreatePostPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            {/* 双语镜像对照模式 */}
+            <button
+              type="button"
+              onClick={() => setBilingualMode((prev) => !prev)}
+              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                bilingualMode
+                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 font-semibold'
+                  : 'bg-card hover:bg-secondary border-border text-foreground'
+              }`}
+              title="切换双语分屏镜像滚动对照模式"
+            >
+              <Languages className="w-3.5 h-3.5 text-indigo-500" />
+              <span>双语对照</span>
+            </button>
+
             {/* 属性抽屉开关按钮 */}
             <button
               type="button"
@@ -459,16 +478,58 @@ export default function CreatePostPage() {
             )}
           </div>
 
-          {/* 全功能沉浸式 Markdown 核心编辑器 */}
-          <MarkdownEditor
-            value={content}
-            onChange={(val) => {
-              setContent(val);
-              setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
-            }}
-            draftKey="draft_post_new"
-            lastSavedTime={draftSavedTime}
-          />
+          {/* 全功能沉浸式 Markdown 核心编辑器 或 双语镜像对照编辑器 */}
+          {bilingualMode ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-600 dark:text-indigo-400">
+                <span className="font-semibold flex items-center gap-2">
+                  <Languages className="w-4 h-4" />
+                  双语同步对照创作工坊：左侧为中文母本，右侧为英文译本（实时镜像比例平滑滚动）
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBilingualMode(false)}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 font-medium transition-colors cursor-pointer"
+                >
+                  退出双语分屏
+                </button>
+              </div>
+              <BilingualSplitEditor
+                zhContent={lang === 'zh' ? content : enContent}
+                enContent={lang === 'zh' ? enContent : content}
+                onChangeZh={(val) => {
+                  if (lang === 'zh') {
+                    setContent(val);
+                    setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
+                  } else {
+                    setEnContent(val);
+                  }
+                }}
+                onChangeEn={(val) => {
+                  if (lang === 'zh') {
+                    setEnContent(val);
+                  } else {
+                    setContent(val);
+                    setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
+                  }
+                }}
+                zhTitle={lang === 'zh' ? title : enTitle}
+                enTitle={lang === 'zh' ? enTitle : title}
+                onChangeZhTitle={(val) => (lang === 'zh' ? setTitle(val) : setEnTitle(val))}
+                onChangeEnTitle={(val) => (lang === 'zh' ? setEnTitle(val) : setTitle(val))}
+              />
+            </div>
+          ) : (
+            <MarkdownEditor
+              value={content}
+              onChange={(val) => {
+                setContent(val);
+                setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
+              }}
+              draftKey="draft_post_new"
+              lastSavedTime={draftSavedTime}
+            />
+          )}
         </div>
 
         {/* 灵动发布属性抽屉 (Properties Inspector) */}

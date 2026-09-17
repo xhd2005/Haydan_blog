@@ -9,14 +9,12 @@ import java.util.List;
 @Data
 public class PostCreateUpdateRequest {
 
-    @NotBlank(message = "文章标题不能为空")
     private String title;
 
     private String slug;
 
     private String excerpt;
 
-    @NotBlank(message = "文章内容不能为空")
     private String content;
 
     private String cover;

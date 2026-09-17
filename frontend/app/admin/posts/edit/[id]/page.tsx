@@ -31,11 +31,15 @@ import {
   Clock,
   Send,
   ExternalLink,
+  History,
 } from 'lucide-react';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { triggerRevalidate } from '@/components/admin/revalidate';
 import { AiPostCurationToolbar } from '@/components/admin/AiPostCurationToolbar';
 import { BilingualTranslationStudioModal } from '@/components/admin/BilingualTranslationStudioModal';
+import { BilingualSplitEditor } from '@/components/admin/posts/BilingualSplitEditor';
+import { PostRevisionHistoryModal } from '@/components/admin/posts/PostRevisionHistoryModal';
+import { savePostRevision } from '@/lib/postRevisions';
 import { normalizeMediaUrl } from '@/lib/media-url';
 
 export default function EditPostPage({ params }: { params: { id: string } }) {
@@ -62,6 +66,10 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
   const [deriving, setDeriving] = useState(false);
   const [aiRadarJson, setAiRadarJson] = useState('');
   const [translateStudioOpen, setTranslateStudioOpen] = useState(false);
+  const [bilingualMode, setBilingualMode] = useState(false);
+  const [enTitle, setEnTitle] = useState('');
+  const [enContent, setEnContent] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // 属性抽屉展开状态 (桌面端默认展开，方便随时配置封面与发布属性)
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -126,6 +134,18 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
         }
         if (post.tags) {
           setSelectedTagIds(post.tags.map((t) => t.id));
+        }
+
+        if (post.translationPostId) {
+          api.getPostById(post.translationPostId).then((trans) => {
+            if (trans) {
+              setEnTitle(trans.title || '');
+              setEnContent(trans.content || '');
+            }
+          }).catch(() => {});
+        }
+        if (post.title || post.content) {
+          savePostRevision(postId, post.title || '', post.content || '', '载入快照');
         }
 
         // 检测本地是否存在比服务端更新的草稿
@@ -208,6 +228,7 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
 
     setLoading(true);
     try {
+      savePostRevision(postId, title, content, `保存更新 (${submitStatus})`);
       await api.updatePost(postId, {
         title,
         slug: slug || undefined,
@@ -313,6 +334,32 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
                 <span>前台预览</span>
               </Link>
             )}
+
+            {/* 版本时光机快照对比 */}
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="px-3 py-2 rounded-xl bg-card hover:bg-secondary text-foreground text-xs font-medium border border-border transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="查看博文历史版本快照与差异对比"
+            >
+              <History className="w-3.5 h-3.5 text-blue-500" />
+              <span className="hidden sm:inline">版本时光机</span>
+            </button>
+
+            {/* 双语镜像对照模式 */}
+            <button
+              type="button"
+              onClick={() => setBilingualMode((prev) => !prev)}
+              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                bilingualMode
+                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 font-semibold'
+                  : 'bg-card hover:bg-secondary border-border text-foreground'
+              }`}
+              title="切换双语分屏镜像滚动对照模式"
+            >
+              <Languages className="w-3.5 h-3.5 text-indigo-500" />
+              <span>双语对照</span>
+            </button>
 
             {/* 属性抽屉开关按钮 */}
             <button
@@ -555,16 +602,58 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          {/* 全功能沉浸式 Markdown 核心编辑器 */}
-          <MarkdownEditor
-            value={content}
-            onChange={(val) => {
-              setContent(val);
-              setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
-            }}
-            draftKey={`draft_post_${postId}`}
-            lastSavedTime={draftSavedTime}
-          />
+          {/* 全功能沉浸式 Markdown 核心编辑器 或 双语镜像对照编辑器 */}
+          {bilingualMode ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-600 dark:text-indigo-400">
+                <span className="font-semibold flex items-center gap-2">
+                  <Languages className="w-4 h-4" />
+                  双语同步对照创作工坊：左侧为中文母本，右侧为英文译本（实时镜像比例平滑滚动）
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBilingualMode(false)}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 font-medium transition-colors cursor-pointer"
+                >
+                  退出双语分屏
+                </button>
+              </div>
+              <BilingualSplitEditor
+                zhContent={lang === 'zh' ? content : enContent}
+                enContent={lang === 'zh' ? enContent : content}
+                onChangeZh={(val) => {
+                  if (lang === 'zh') {
+                    setContent(val);
+                    setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
+                  } else {
+                    setEnContent(val);
+                  }
+                }}
+                onChangeEn={(val) => {
+                  if (lang === 'zh') {
+                    setEnContent(val);
+                  } else {
+                    setContent(val);
+                    setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
+                  }
+                }}
+                zhTitle={lang === 'zh' ? title : enTitle}
+                enTitle={lang === 'zh' ? enTitle : title}
+                onChangeZhTitle={(val) => (lang === 'zh' ? setTitle(val) : setEnTitle(val))}
+                onChangeEnTitle={(val) => (lang === 'zh' ? setEnTitle(val) : setTitle(val))}
+              />
+            </div>
+          ) : (
+            <MarkdownEditor
+              value={content}
+              onChange={(val) => {
+                setContent(val);
+                setReadingTime(Math.max(1, Math.ceil(val.length / 400)));
+              }}
+              draftKey={`draft_post_${postId}`}
+              lastSavedTime={draftSavedTime}
+            />
+          )}
         </div>
 
         {/* 灵动发布属性抽屉 (Properties Inspector) */}
@@ -978,6 +1067,20 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
           if (newPostId) {
             router.push(`/admin/posts/edit/${newPostId}`);
           }
+        }}
+      />
+
+      {/* 博文历史版本时光机 */}
+      <PostRevisionHistoryModal
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        postId={postId}
+        currentTitle={title}
+        currentContent={content}
+        onRestore={(restoredTitle, restoredContent) => {
+          setTitle(restoredTitle);
+          setContent(restoredContent);
+          toast.success('已成功恢复指定历史版本快照！');
         }}
       />
     </div>

@@ -88,7 +88,7 @@ public class Java25AndLangChain4jEvolutionTest {
         assertTrue(StorageService.class.isSealed(), "StorageService 必须为 Java Sealed 接口");
         Class<?>[] permittedSubclasses = StorageService.class.getPermittedSubclasses();
         assertNotNull(permittedSubclasses);
-        assertEquals(2, permittedSubclasses.length, "StorageService 必须严格且仅允许两个实现");
+        assertEquals(3, permittedSubclasses.length, "StorageService 密封分支包含 Local, Minio 与 AliyunOss 三大实现");
 
         // 验证 StorageFactory 的模式匹配 switch 分发
         String localDesc = storageFactory.describeStorageBackend(localStorageService);
@@ -96,6 +96,9 @@ public class Java25AndLangChain4jEvolutionTest {
 
         String minioDesc = storageFactory.describeStorageBackend(minioStorageService);
         assertTrue(minioDesc.contains("MinIO Cloud Storage"), "应正确识别 MinIO 存储");
+
+        String ossDesc = storageFactory.describeStorageBackend(storageFactory.getAliyunOssStorageService());
+        assertTrue(ossDesc.contains("Aliyun OSS Cloud Storage"), "应正确识别阿里云 OSS 存储");
 
         // 验证 GardenTool 密封阶层
         assertTrue(GardenTool.class.isSealed(), "GardenTool 必须为 Java Sealed 接口");

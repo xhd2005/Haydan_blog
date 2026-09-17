@@ -72,13 +72,19 @@ public class PostController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public Result<Long> createPost(@Valid @RequestBody PostCreateUpdateRequest request) {
+    public Result<Long> createPost(@RequestBody PostCreateUpdateRequest request) {
+        if (request == null || !org.springframework.util.StringUtils.hasText(request.getTitle())) {
+            throw new com.hayden.blog.exception.BusinessException(400, "文章标题不能为空");
+        }
+        if (!org.springframework.util.StringUtils.hasText(request.getContent())) {
+            throw new com.hayden.blog.exception.BusinessException(400, "文章内容不能为空");
+        }
         return Result.success(postService.createPost(request));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public Result<Void> updatePost(@PathVariable Long id, @Valid @RequestBody PostCreateUpdateRequest request) {
+    public Result<Void> updatePost(@PathVariable Long id, @RequestBody PostCreateUpdateRequest request) {
         postService.updatePost(id, request);
         return Result.success();
     }

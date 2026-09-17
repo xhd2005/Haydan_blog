@@ -66,6 +66,7 @@ public class AiStressAndEdgeCaseTest {
             restore.setAiApiKey(originalSetting.getAiApiKey());
             restore.setAiBaseUrl(originalSetting.getAiBaseUrl());
             restore.setAiModel(originalSetting.getAiModel());
+            restore.setAiProvidersJson(originalSetting.getAiProvidersJson());
             siteSettingService.updateSettings(restore);
         }
     }
@@ -114,6 +115,7 @@ public class AiStressAndEdgeCaseTest {
             update.setAiApiKey("test-sk-adversarial");
             update.setAiBaseUrl(mockBaseUrl);
             update.setAiModel("deepseek-v4-flash");
+            update.setAiProvidersJson("[]");
             siteSettingService.updateSettings(update);
 
             AiChatRequest request = AiChatRequest.builder()
@@ -195,6 +197,7 @@ public class AiStressAndEdgeCaseTest {
             update.setAiApiKey("test-sk-adversarial");
             update.setAiBaseUrl(mockBaseUrl);
             update.setAiModel("deepseek-v4-flash");
+            update.setAiProvidersJson("[]");
             siteSettingService.updateSettings(update);
 
             AiChatRequest request = AiChatRequest.builder()
@@ -246,6 +249,7 @@ public class AiStressAndEdgeCaseTest {
             update.setAiApiKey("test-sk-adversarial");
             update.setAiBaseUrl(mockBaseUrl);
             update.setAiModel("deepseek-v4-flash");
+            update.setAiProvidersJson("[]");
             siteSettingService.updateSettings(update);
 
             AiChatRequest request = AiChatRequest.builder()

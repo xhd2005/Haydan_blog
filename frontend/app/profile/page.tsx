@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { toast } from '@/lib/toast';
+import { toast, confirmModal } from '@/lib/toast';
 import { User, UserCommentItem, UserLikeItem } from '@/lib/types';
 import { SafeImage } from '@/components/SafeImage';
 import { DEFAULT_AVATAR } from '@/lib/media-defaults';
@@ -307,7 +307,14 @@ export default function ProfilePage() {
   };
 
   const handleDeleteComment = async (commentId: number) => {
-    if (!window.confirm(t('profile.delete_comment_confirm'))) return;
+    const confirmed = await confirmModal({
+      title: isEn ? 'Delete Comment' : '删除评论确认',
+      message: t('profile.delete_comment_confirm'),
+      confirmText: isEn ? 'Delete' : '确认删除',
+      cancelText: isEn ? 'Cancel' : '取消',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setDeletingCommentId(commentId);
       await api.deleteComment(commentId);

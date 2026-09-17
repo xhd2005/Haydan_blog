@@ -32,7 +32,19 @@ import {
   ArrowUpDown,
   Filter,
   CheckCircle,
+  Lock,
+  Sliders,
 } from 'lucide-react';
+import { DropRippleFeedback } from '@/components/admin/media/DropRippleFeedback';
+import { MediaReferenceLockBadge } from '@/components/admin/media/MediaReferenceLockBadge';
+import { MediaRecycleBinDrawer } from '@/components/admin/media/MediaRecycleBinDrawer';
+import {
+  checkMediaReferences,
+  assertMediaCanBeDeleted,
+  scanOrphanMediaAssets,
+  moveToRecycleBin,
+} from '@/lib/mediaReferenceTracker';
+import { uploadMediaWithSparkCheck } from '@/lib/mediaUploadSpark';
 
 function formatBytes(bytes?: number): string {
   if (!bytes || bytes === 0) return '0 B';
@@ -60,11 +72,12 @@ export default function MediaAdminPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(12);
 
-  // 视图模式：网格 (grid) 或 列表 (list)
+  // 视图模式与 macOS Photos 缩放列数 (2 ~ 6)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [zoomCols, setZoomCols] = useState<number>(4);
 
-  // 多维筛选维度
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'IMAGE' | 'VIDEO'>('ALL');
+  // 多维筛选维度 (含在用防删锁与孤立闲置扫描)
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'IMAGE' | 'VIDEO' | 'LOCKED' | 'ORPHAN'>('ALL');
   const [dateFilter, setDateFilter] = useState<'ALL' | '7DAYS' | '30DAYS' | 'YEAR'>('ALL');
   const [sizeFilter, setSizeFilter] = useState<'ALL' | 'LT_1MB' | '1MB_5MB' | 'GT_5MB'>('ALL');
   const [sortBy, setSortBy] = useState<'NEWEST' | 'OLDEST' | 'SIZE_DESC' | 'NAME'>('NEWEST');
@@ -86,12 +99,31 @@ export default function MediaAdminPage() {
   // 灯箱/大图视频预览 Modal
   const [previewItem, setPreviewItem] = useState<Media | null>(null);
 
-  // 删除确认 Modal
+  // 删除确认 Modal 与反向引用数据
   const [deletingItem, setDeletingItem] = useState<Media | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // 反向引用水合数据源 (遵从 AGENTS.md 正文数据水合铁律)
+  const [hydratedPosts, setHydratedPosts] = useState<any[]>([]);
+  const [allMemos, setAllMemos] = useState<any[]>([]);
+  const [recycleBinOpen, setRecycleBinOpen] = useState(false);
+
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => {});
+
+    // 严格水合全部博文 (含正文 content 与封面)
+    api.getAdminPosts({ pageSize: 100 }).then(async (res) => {
+      const list = res.records || [];
+      const hydrated = await Promise.all(
+        list.map((p) => api.getPostById(p.id).catch(() => p))
+      );
+      setHydratedPosts(hydrated);
+    }).catch(() => {});
+
+    // 水合随记数据
+    api.getMemos({ pageSize: 100 }).then((res) => {
+      setAllMemos(res.records || []);
+    }).catch(() => {});
   }, []);
 
   const storageType = (settings?.storageType || 'oss').toLowerCase();
@@ -172,20 +204,25 @@ export default function MediaAdminPage() {
       task.progress = 15;
       setUploadQueue(Array.from(taskMap.values()));
 
-      const timer = setInterval(() => {
-        task.progress = Math.min(90, task.progress + 15);
-        setUploadQueue(Array.from(taskMap.values()));
-      }, 300);
-
       try {
-        const res = await api.uploadMedia(task.file);
-        clearInterval(timer);
+        const uploadRes = await uploadMediaWithSparkCheck(
+          task.file,
+          mediaList,
+          (prog) => {
+            task.progress = prog;
+            setUploadQueue(Array.from(taskMap.values()));
+          }
+        );
+
         task.status = 'success';
         task.progress = 100;
-        task.url = res.url;
+        task.url = uploadRes.media.url;
         setUploadQueue(Array.from(taskMap.values()));
+
+        if (uploadRes.isInstantUpload) {
+          toast.success(`SparkMD5 秒传命中：${task.filename} 瞬间完成！`);
+        }
       } catch (err: any) {
-        clearInterval(timer);
         task.status = 'error';
         task.errorMsg = err.message || '上传失败';
         setUploadQueue(Array.from(taskMap.values()));
@@ -265,8 +302,28 @@ export default function MediaAdminPage() {
     toast.success('已复制 CDN 访问直链至剪贴板');
   };
 
+  const handleDeleteRequest = (item: Media) => {
+    const refInfo = checkMediaReferences(item.url, hydratedPosts, allMemos, settings);
+    try {
+      assertMediaCanBeDeleted(refInfo);
+    } catch (err: any) {
+      toast.error(err.message);
+      return;
+    }
+    setDeletingItem(item);
+  };
+
   const confirmDelete = async () => {
     if (!deletingItem) return;
+    const refInfo = checkMediaReferences(deletingItem.url, hydratedPosts, allMemos, settings);
+    try {
+      assertMediaCanBeDeleted(refInfo);
+    } catch (err: any) {
+      toast.error(err.message);
+      setDeletingItem(null);
+      return;
+    }
+
     setDeleteLoading(true);
     try {
       await api.deleteMedia(deletingItem.id);
@@ -280,11 +337,16 @@ export default function MediaAdminPage() {
     }
   };
 
+  // 全站孤立闲置资源计算
+  const orphanAssets = useMemo(() => {
+    return scanOrphanMediaAssets(mediaList, hydratedPosts, allMemos, settings);
+  }, [mediaList, hydratedPosts, allMemos, settings]);
+
   // 多维筛选与排序计算
   const filteredList = useMemo(() => {
     let list = [...mediaList];
 
-    // 1. 类型筛选
+    // 1. 类型与在用防删锁筛选
     if (typeFilter === 'IMAGE') {
       list = list.filter((item) => {
         const isVid = item.mimeType?.startsWith('video/') || item.filename?.match(/\.(mp4|webm|mov)$/i);
@@ -294,6 +356,16 @@ export default function MediaAdminPage() {
       list = list.filter((item) => {
         const isVid = item.mimeType?.startsWith('video/') || item.filename?.match(/\.(mp4|webm|mov)$/i);
         return isVid;
+      });
+    } else if (typeFilter === 'LOCKED') {
+      list = list.filter((item) => {
+        const ref = checkMediaReferences(item.url, hydratedPosts, allMemos, settings);
+        return ref.isLocked;
+      });
+    } else if (typeFilter === 'ORPHAN') {
+      list = list.filter((item) => {
+        const ref = checkMediaReferences(item.url, hydratedPosts, allMemos, settings);
+        return !ref.isLocked;
       });
     }
 
@@ -350,7 +422,10 @@ export default function MediaAdminPage() {
   const isUploadingActive = uploadQueue.some((t) => t.status === 'uploading' || t.status === 'pending');
 
   return (
-    <div className="w-full space-y-5">
+    <div className="w-full space-y-5 relative">
+      {/* 屏幕级拖拽水波纹动效 */}
+      <DropRippleFeedback />
+
       {/* 统一规范头部 */}
       <AdminPageHeader
         title="媒体资产管理中心 (Media Hub)"
@@ -368,6 +443,21 @@ export default function MediaAdminPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRecycleBinOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-card hover:bg-secondary text-foreground text-xs font-medium border border-border transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="查看媒体回收站与全站孤立闲置文件清理 (GC 扫描)"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+              <span>回收站 &amp; 孤立清理</span>
+              {orphanAssets.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-rose-500/10 text-rose-500 font-mono text-[10px] font-bold">
+                  {orphanAssets.length} 闲置
+                </span>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={handleTestStorage}
@@ -496,12 +586,12 @@ export default function MediaAdminPage() {
       {/* 3. 多维筛选与控制工具栏 */}
       <div className="p-4 rounded-2xl bg-card border border-border flex flex-col gap-3.5 text-xs shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* 筛选 Pills (类型) */}
-          <div className="flex items-center p-1 rounded-xl bg-secondary border border-border">
+          {/* 筛选 Pills (类型与反向引用状态) */}
+          <div className="flex items-center p-1 rounded-xl bg-secondary border border-border flex-wrap gap-0.5">
             <button
               type="button"
               onClick={() => setTypeFilter('ALL')}
-              className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                 typeFilter === 'ALL'
                   ? 'bg-foreground text-background shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
@@ -512,7 +602,7 @@ export default function MediaAdminPage() {
             <button
               type="button"
               onClick={() => setTypeFilter('IMAGE')}
-              className={`px-3 py-1 rounded-lg font-medium flex items-center gap-1 transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 transition-all cursor-pointer ${
                 typeFilter === 'IMAGE'
                   ? 'bg-foreground text-background shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
@@ -524,7 +614,7 @@ export default function MediaAdminPage() {
             <button
               type="button"
               onClick={() => setTypeFilter('VIDEO')}
-              className={`px-3 py-1 rounded-lg font-medium flex items-center gap-1 transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 transition-all cursor-pointer ${
                 typeFilter === 'VIDEO'
                   ? 'bg-foreground text-background shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
@@ -533,10 +623,56 @@ export default function MediaAdminPage() {
               <Film className="w-3.5 h-3.5" />
               <span>视频</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('LOCKED')}
+              className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                typeFilter === 'LOCKED'
+                  ? 'bg-amber-500 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="查看当前被博文、随记或站点配置引用的受保护资产"
+            >
+              <Lock className="w-3.5 h-3.5 text-amber-300" />
+              <span>在用锁定</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('ORPHAN')}
+              className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                typeFilter === 'ORPHAN'
+                  ? 'bg-rose-500 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="查看全站未被引用的孤立闲置资源（可移入回收站）"
+            >
+              <span>孤立闲置</span>
+              {orphanAssets.length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[9px] bg-rose-500/20 text-rose-500 font-mono">
+                  {orphanAssets.length}
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* 视图模式切换与刷新 */}
+          {/* 视图模式切换、macOS Photos 缩放滑块与刷新 */}
           <div className="flex items-center gap-2">
+            {viewMode === 'grid' && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-secondary border border-border text-muted-foreground text-[11px]">
+                <Sliders className="w-3 h-3 text-emerald-500" />
+                <span className="text-[10px] font-mono">网格缩放</span>
+                <input
+                  type="range"
+                  min="2"
+                  max="6"
+                  value={zoomCols}
+                  onChange={(e) => setZoomCols(Number(e.target.value))}
+                  className="w-16 sm:w-20 accent-emerald-500 cursor-pointer h-1.5 bg-border rounded-lg"
+                  title={`当前每行呈现 ${zoomCols} 列 (macOS Photos 风格平滑缩放)`}
+                />
+              </div>
+            )}
+
             <div className="flex items-center p-1 rounded-xl bg-secondary border border-border">
               <button
                 type="button"
@@ -663,9 +799,20 @@ export default function MediaAdminPage() {
         </div>
       ) : viewMode === 'grid' ? (
         /* 网格视图 */
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className={`grid gap-4 ${
+          zoomCols === 2
+            ? 'grid-cols-1 sm:grid-cols-2'
+            : zoomCols === 3
+            ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
+            : zoomCols === 5
+            ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5'
+            : zoomCols === 6
+            ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-6'
+            : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+        }`}>
           {filteredList.map((item) => {
             const isVideo = item.mimeType?.startsWith('video/') || item.filename?.match(/\.(mp4|webm|mov)$/i);
+            const refInfo = checkMediaReferences(item.url, hydratedPosts, allMemos, settings);
 
             return (
               <div
@@ -674,6 +821,11 @@ export default function MediaAdminPage() {
               >
                 {/* 媒体缩略展示区 */}
                 <div className="relative aspect-video bg-black/90 overflow-hidden flex items-center justify-center">
+                  {/* 在用防删锁角标 */}
+                  <div className="absolute top-2 left-2 z-10">
+                    <MediaReferenceLockBadge refInfo={refInfo} />
+                  </div>
+
                   {isVideo ? (
                     <div className="relative w-full h-full">
                       <video
@@ -687,7 +839,7 @@ export default function MediaAdminPage() {
                           <Play className="w-4 h-4 fill-current ml-0.5" />
                         </div>
                       </div>
-                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 text-cyan-400 text-[10px] font-mono font-bold border border-white/10">
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/70 text-cyan-400 text-[10px] font-mono font-bold border border-white/10">
                         VIDEO
                       </span>
                     </div>
@@ -720,11 +872,15 @@ export default function MediaAdminPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setDeletingItem(item)}
-                      title="删除该资产"
-                      className="p-2 rounded-xl bg-rose-500/70 hover:bg-rose-500 text-white backdrop-blur-md transition-colors cursor-pointer"
+                      onClick={() => handleDeleteRequest(item)}
+                      title={refInfo.isLocked ? '该资产已被博文/随记引用，受在用防删锁保护' : '删除该资产'}
+                      className={`p-2 rounded-xl backdrop-blur-md transition-colors cursor-pointer ${
+                        refInfo.isLocked
+                          ? 'bg-amber-500/70 hover:bg-amber-600 text-white'
+                          : 'bg-rose-500/70 hover:bg-rose-500 text-white'
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {refInfo.isLocked ? <Lock className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -767,6 +923,7 @@ export default function MediaAdminPage() {
               <tbody className="divide-y divide-border/60">
                 {filteredList.map((item) => {
                   const isVideo = item.mimeType?.startsWith('video/') || item.filename?.match(/\.(mp4|webm|mov)$/i);
+                  const refInfo = checkMediaReferences(item.url, hydratedPosts, allMemos, settings);
                   return (
                     <tr key={item.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="p-3">
@@ -782,8 +939,11 @@ export default function MediaAdminPage() {
                         </div>
                       </td>
                       <td className="p-3 max-w-sm">
-                        <div className="font-semibold text-foreground truncate" title={item.filename}>
-                          {item.filename}
+                        <div className="flex items-center gap-2">
+                          <div className="font-semibold text-foreground truncate" title={item.filename}>
+                            {item.filename}
+                          </div>
+                          <MediaReferenceLockBadge refInfo={refInfo} />
                         </div>
                         <div className="text-[10px] font-mono text-muted-foreground truncate" title={item.url}>
                           {item.url}
@@ -819,11 +979,15 @@ export default function MediaAdminPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeletingItem(item)}
-                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors cursor-pointer"
-                          title="删除"
+                          onClick={() => handleDeleteRequest(item)}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            refInfo.isLocked
+                              ? 'hover:bg-amber-500/10 text-amber-500'
+                              : 'hover:bg-rose-500/10 text-rose-500'
+                          }`}
+                          title={refInfo.isLocked ? '该资产已被博文/随记引用，受在用防删锁保护' : '删除'}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          {refInfo.isLocked ? <Lock className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
                         </button>
                       </td>
                     </tr>
@@ -1038,6 +1202,20 @@ export default function MediaAdminPage() {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  if (deletingItem) {
+                    moveToRecycleBin([deletingItem]);
+                    toast.success(`已将 "${deletingItem.filename}" 移入回收站冷冻 30 天！`);
+                    setDeletingItem(null);
+                    fetchMedia();
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
+              >
+                <span>移入回收站 (30天保留)</span>
+              </button>
+              <button
+                type="button"
                 disabled={deleteLoading}
                 onClick={confirmDelete}
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-semibold flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
@@ -1049,6 +1227,14 @@ export default function MediaAdminPage() {
           </div>
         </div>
       )}
+
+      {/* 媒体回收站与全站孤立闲置扫描抽屉 */}
+      <MediaRecycleBinDrawer
+        isOpen={recycleBinOpen}
+        onClose={() => setRecycleBinOpen(false)}
+        orphanAssets={orphanAssets}
+        onRefresh={fetchMedia}
+      />
     </div>
   );
 }

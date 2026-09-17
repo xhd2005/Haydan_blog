@@ -6,23 +6,32 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { toast } from '@/lib/toast';
 import { readAuthToken, readAuthUserRaw, clearAuthStorage } from '@/lib/storage-keys';
-import { 
-  AdminSidebar, 
-  ADMIN_MATRICES 
-} from '@/components/admin/AdminSidebar';
-import { AdminCommandPalette } from '@/components/admin/AdminCommandPalette';
-import { 
-  Menu, 
-  Search, 
-  Sun, 
-  Moon, 
-  LogOut, 
-  ChevronRight, 
+import { FloatingAcrylicDock } from '@/components/admin/layout/FloatingAcrylicDock';
+import { TabsWorkspaceBar } from '@/components/admin/layout/TabsWorkspaceBar';
+import { AdminSpotlightModal } from '@/components/admin/layout/AdminSpotlightModal';
+import { ThreeWayMergeDrawer } from '@/components/admin/layout/ThreeWayMergeDrawer';
+import { MultiTabsProvider } from '@/context/MultiTabsContext';
+import { ADMIN_MATRICES } from '@/components/admin/AdminSidebar';
+import {
+  Menu,
+  Search,
+  Sun,
+  Moon,
+  LogOut,
+  ChevronRight,
   Command,
   ExternalLink
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <MultiTabsProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </MultiTabsProvider>
+  );
+}
+
+function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
@@ -34,8 +43,42 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
+  // 三向合并抽屉状态
+  const [mergeDrawerOpen, setMergeDrawerOpen] = useState(false);
+  const [mergeData, setMergeData] = useState<{
+    title: string;
+    baseContent: string;
+    localContent: string;
+    cloudContent: string;
+    onResolve?: (res: string) => void;
+  }>({
+    title: '冲突仲裁检视器',
+    baseContent: '',
+    localContent: '',
+    cloudContent: '',
+  });
+
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // 监听全局三向合并抽屉呼出事件
+  useEffect(() => {
+    const handleOpenMerge = (e: CustomEvent) => {
+      if (e.detail) {
+        setMergeData({
+          title: e.detail.title || '冲突仲裁检视器',
+          baseContent: e.detail.baseContent || '',
+          localContent: e.detail.localContent || '',
+          cloudContent: e.detail.cloudContent || '',
+          onResolve: e.detail.onResolve,
+        });
+        setMergeDrawerOpen(true);
+      }
+    };
+
+    window.addEventListener('open-three-way-merge' as any, handleOpenMerge);
+    return () => window.removeEventListener('open-three-way-merge' as any, handleOpenMerge);
   }, []);
 
   // 初始化侧边栏折叠记忆
@@ -117,10 +160,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/admin/login');
   };
 
-  // 如果访问的是登录页面，直接铺满全屏，不渲染 Sidebar 和 Topbar，适配白瓷/曜黑双主题
+  // 如果访问的是登录页面，直接铺满全屏，不渲染 Sidebar 和 Topbar，纯正雪瓷白/深曜石黑双主题
   if (pathname === '/admin/login') {
     return (
-      <div className="w-full min-h-screen bg-[#fcfcfd] dark:bg-[#090a0f] text-slate-900 dark:text-slate-200">
+      <div className="w-full min-h-screen bg-[#fbfbfd] dark:bg-[#090a0f] text-slate-900 dark:text-slate-200">
         {children}
       </div>
     );
@@ -129,7 +172,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // 权限检查中骨架等待态
   if (!authorized) {
     return (
-      <div className="w-full min-h-screen bg-[#fcfcfd] dark:bg-[#090a0f] flex items-center justify-center text-slate-500 dark:text-zinc-400 font-mono text-xs">
+      <div className="w-full min-h-screen bg-[#fbfbfd] dark:bg-[#090a0f] flex items-center justify-center text-slate-500 dark:text-zinc-400 font-mono text-xs">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
           <span>Verifying Studio Credentials & Session...</span>
@@ -138,13 +181,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const plClass = collapsed ? 'lg:pl-[68px]' : 'lg:pl-[280px]';
+  // 悬浮双岛坞左侧预留边距（包含 14px 离屏边距与大圆角缓冲）
+  const plClass = collapsed ? 'lg:pl-[92px]' : 'lg:pl-[304px]';
   const isDark = mounted ? resolvedTheme === 'dark' : true;
 
   return (
-    <div className="min-h-screen bg-[#fcfcfd] dark:bg-[#090a0f] text-slate-900 dark:text-slate-200 antialiased selection:bg-emerald-500/20 selection:text-emerald-500 flex flex-col font-sans transition-colors duration-300">
-      {/* 侧边栏 */}
-      <AdminSidebar
+    <div className="min-h-screen bg-[#fbfbfd] dark:bg-[#090a0f] text-slate-900 dark:text-slate-200 antialiased selection:bg-emerald-500/20 selection:text-emerald-500 flex flex-col font-sans transition-colors duration-300">
+      {/* macOS 悬浮流光亚克力独立双岛坞 */}
+      <FloatingAcrylicDock
         collapsed={collapsed}
         onToggleCollapse={toggleCollapse}
         currentUser={currentUser}
@@ -156,19 +200,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* 主工作区 */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${plClass}`}>
         {/* 顶部控制台 Topbar */}
-        <header className="sticky top-0 z-30 h-14 shrink-0 bg-[#fcfcfd]/80 dark:bg-[#090a0f]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/[0.08] flex items-center justify-between px-4 sm:px-6 transition-colors duration-300">
-          {/* 左侧：汉堡/折叠按钮 + 面包屑 */}
+        <header className="sticky top-0 z-30 h-14 shrink-0 bg-[#fbfbfd]/80 dark:bg-[#090a0f]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-white/[0.08] flex items-center justify-between px-4 sm:px-6 transition-colors duration-300">
+          {/* 左侧：汉堡呼出侧边栏 + 面包屑 */}
           <div className="flex items-center gap-3 min-w-0">
-            {/* 移动端汉堡呼出侧边栏 */}
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-1.5 rounded-lg text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+              className="lg:hidden p-1.5 rounded-xl text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
               aria-label="打开侧边菜单"
             >
               <Menu className="w-4 h-4" />
             </button>
 
-            {/* 动态面包屑导航（带 Suspense 保护支持 ?tab= 参数与去冗余） */}
+            {/* 动态面包屑导航 */}
             <Suspense
               fallback={
                 <nav className="flex items-center gap-1.5 text-xs overflow-hidden">
@@ -185,12 +228,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* 快速打开 Cmd+K 命令面板 */}
             <button
               onClick={() => setPaletteOpen(true)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.03] dark:hover:bg-white/[0.07] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 transition-all group cursor-pointer"
-              title="全局命令面板 (Cmd+K)"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] border border-slate-200/80 dark:border-white/[0.08] text-xs text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 transition-all group cursor-pointer"
+              title="全局 Spotlight 命令面板 (Cmd+K)"
             >
               <Search className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors" />
-              <span className="hidden md:inline text-slate-600 dark:text-zinc-400 font-normal">搜索与快捷指令...</span>
-              <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-200/80 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.08] text-slate-600 dark:text-zinc-400">
+              <span className="hidden md:inline text-slate-600 dark:text-zinc-400 font-normal">
+                搜索与运维宏...
+              </span>
+              <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-slate-200/80 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.08] text-slate-600 dark:text-zinc-400">
                 <Command className="w-2.5 h-2.5" />K
               </kbd>
             </button>
@@ -199,7 +244,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <button
               onClick={() => setTheme(isDark ? 'light' : 'dark')}
               title={isDark ? '切换至白瓷浅色模式' : '切换至极客曜黑模式'}
-              className="p-2 rounded-lg text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
             >
               {isDark ? (
                 <Sun className="w-4 h-4 text-amber-400" />
@@ -214,7 +259,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               target="_blank"
               rel="noopener noreferrer"
               title="新标签页打开博客前台"
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>前台主页</span>
@@ -224,23 +269,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <button
               onClick={handleLogout}
               title="退出登录"
-              className="p-2 rounded-lg text-slate-500 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-slate-500 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         </header>
 
+        {/* 流光微晶多标签页导航栏 (Tabs Workspace Bar) */}
+        <TabsWorkspaceBar />
+
         {/* 内容主体视口 */}
-        <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 overflow-x-hidden max-w-[1600px] mx-auto">
+        <main
+          className="flex-1 w-full p-4 sm:p-6 lg:p-8 overflow-x-hidden max-w-[1600px] mx-auto"
+          data-tab-route={pathname}
+        >
           {children}
         </main>
       </div>
 
-      {/* 全局命令面板 */}
-      <AdminCommandPalette
+      {/* Spotlight 全局命令面板模态框 */}
+      <AdminSpotlightModal
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}
+      />
+
+      {/* 三向合并差异仲裁抽屉 */}
+      <ThreeWayMergeDrawer
+        isOpen={mergeDrawerOpen}
+        onClose={() => setMergeDrawerOpen(false)}
+        title={mergeData.title}
+        baseContent={mergeData.baseContent}
+        localContent={mergeData.localContent}
+        cloudContent={mergeData.cloudContent}
+        onResolve={(resolved) => {
+          if (mergeData.onResolve) {
+            mergeData.onResolve(resolved);
+          }
+          setMergeDrawerOpen(false);
+          toast.success('冲突已成功仲裁解决并生效！');
+        }}
       />
     </div>
   );
@@ -254,7 +322,7 @@ function AdminBreadcrumbsInner() {
   const breadcrumbs = useMemo(() => {
     if (!pathname) return [{ name: 'Studio', href: '/admin/dashboard' }];
 
-    // 1. Dashboard 控制台概览：消除 Dashboard 同名冗余路径，仅保留 Studio > 控制台概览
+    // 1. Dashboard 控制台概览
     if (pathname === '/admin/dashboard') {
       return [
         { name: 'Studio', href: '/admin/dashboard' },
@@ -307,7 +375,7 @@ function AdminBreadcrumbsInner() {
       return crumbs;
     }
 
-    // 6. 其他矩阵页面动态匹配
+    // 5. 职能矩阵动态匹配
     for (const matrix of ADMIN_MATRICES) {
       for (const item of matrix.items) {
         if (

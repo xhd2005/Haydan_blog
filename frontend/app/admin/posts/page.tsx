@@ -29,9 +29,14 @@ import {
   Sparkles,
   Calendar,
   Layers,
+  Replace,
+  History,
 } from 'lucide-react';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { triggerRevalidate } from '@/components/admin/revalidate';
+import { PostQuickLookDrawer } from '@/components/admin/posts/PostQuickLookDrawer';
+import { PostBatchReplaceModal } from '@/components/admin/posts/PostBatchReplaceModal';
+import { PostRevisionHistoryModal } from '@/components/admin/posts/PostRevisionHistoryModal';
 
 export default function AdminPostsPage() {
   const router = useRouter();
@@ -47,6 +52,16 @@ export default function AdminPostsPage() {
 
   // 视图模式：'table' (紧凑表格) | 'grid' (杂志卡片流)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+
+  // QuickLook 预览抽屉状态
+  const [quickLookPostId, setQuickLookPostId] = useState<number | null>(null);
+  const [quickLookOpen, setQuickLookOpen] = useState(false);
+
+  // 批量正文替换模态框
+  const [batchReplaceOpen, setBatchReplaceOpen] = useState(false);
+
+  // 时光机版本快照模态框
+  const [revisionModalPost, setRevisionModalPost] = useState<Post | null>(null);
 
   // 多选与批量操作状态
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -74,6 +89,31 @@ export default function AdminPostsPage() {
       localStorage.setItem('admin_posts_view_mode', mode);
     } catch {}
   };
+
+  // 空格快捷键唤起 QuickLook 极速预览
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.code === 'Space' && !quickLookOpen && !batchReplaceOpen && !revisionModalPost) {
+        const targetId = selectedIds.length > 0 ? selectedIds[0] : (posts.length > 0 ? posts[0].id : null);
+        if (targetId) {
+          e.preventDefault();
+          setQuickLookPostId(targetId);
+          setQuickLookOpen(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [quickLookOpen, batchReplaceOpen, revisionModalPost, selectedIds, posts]);
 
   useEffect(() => {
     setSelectedIds([]);
@@ -350,13 +390,24 @@ export default function AdminPostsPage() {
           { label: '文章管理' },
         ]}
         actions={
-          <Link
-            href="/admin/posts/create"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>写新文章</span>
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setBatchReplaceOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-200/80 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer border border-slate-300/80 dark:border-white/[0.08]"
+              title="全站正文批量查找替换引擎 (带 Diff 预览与快照回滚)"
+            >
+              <Replace className="w-3.5 h-3.5 text-indigo-500" />
+              <span>全站批量替换</span>
+            </button>
+            <Link
+              href="/admin/posts/create"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>写新文章</span>
+            </Link>
+          </div>
         }
       />
 
@@ -606,6 +657,25 @@ export default function AdminPostsPage() {
                             </button>
                           )}
 
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickLookPostId(post.id);
+                              setQuickLookOpen(true);
+                            }}
+                            className="inline-flex p-1.5 rounded-lg hover:bg-emerald-500/10 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+                            title="极速速览 (QuickLook · 空格键)"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRevisionModalPost(post)}
+                            className="inline-flex p-1.5 rounded-lg hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                            title="版本历史与时光机快照"
+                          >
+                            <History className="w-3.5 h-3.5 text-indigo-500" />
+                          </button>
                           <Link
                             href={`/blog/${post.slug}`}
                             target="_blank"
@@ -735,6 +805,25 @@ export default function AdminPostsPage() {
                         {post.viewCount || 0} 次阅读
                       </span>
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickLookPostId(post.id);
+                            setQuickLookOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+                          title="极速速览 (QuickLook · 空格键)"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRevisionModalPost(post)}
+                          className="p-1.5 rounded-lg hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                          title="版本历史与时光机快照"
+                        >
+                          <History className="w-3.5 h-3.5 text-indigo-500" />
+                        </button>
                         <Link
                           href={`/blog/${post.slug}`}
                           target="_blank"
@@ -999,6 +1088,45 @@ export default function AdminPostsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* QuickLook 极速速览抽屉 */}
+      <PostQuickLookDrawer
+        isOpen={quickLookOpen}
+        onClose={() => setQuickLookOpen(false)}
+        postId={quickLookPostId}
+        postList={posts}
+        onSelectPost={(post) => setQuickLookPostId(post.id)}
+      />
+
+      {/* 全站正文批量查找替换模态框 */}
+      <PostBatchReplaceModal
+        isOpen={batchReplaceOpen}
+        onClose={() => setBatchReplaceOpen(false)}
+        selectedPostIds={selectedIds}
+        onSuccess={() => loadPosts()}
+      />
+
+      {/* 时光机版本快照模态框 */}
+      {revisionModalPost && (
+        <PostRevisionHistoryModal
+          isOpen={Boolean(revisionModalPost)}
+          onClose={() => setRevisionModalPost(null)}
+          postId={revisionModalPost.id}
+          currentTitle={revisionModalPost.title}
+          currentContent={revisionModalPost.content || ''}
+          onRestore={(restoredTitle, restoredContent) => {
+            api.updatePost(revisionModalPost.id, {
+              title: restoredTitle,
+              content: restoredContent,
+            }).then(() => {
+              toast.success('已恢复至历史版本并同步保存');
+              loadPosts();
+            }).catch((err) => {
+              toast.error(err.message || '恢复失败');
+            });
+          }}
+        />
       )}
     </div>
   );

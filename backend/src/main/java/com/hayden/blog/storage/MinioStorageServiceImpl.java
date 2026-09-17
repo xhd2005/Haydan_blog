@@ -105,9 +105,15 @@ public non-sealed class MinioStorageServiceImpl implements StorageService {
     public MinioClient buildClient(String endpoint, String accessKey, String secretKey) {
         String normalizedEndpoint = normalizeEndpoint(endpoint);
         String region = resolveRegion(normalizedEndpoint);
+        okhttp3.OkHttpClient httpClient = new okhttp3.OkHttpClient.Builder()
+                .connectTimeout(3, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build();
         MinioClient.Builder builder = MinioClient.builder()
                 .endpoint(normalizedEndpoint)
-                .credentials(accessKey, secretKey);
+                .credentials(accessKey, secretKey)
+                .httpClient(httpClient);
         if (StringUtils.hasText(region)) {
             builder.region(region);
         }

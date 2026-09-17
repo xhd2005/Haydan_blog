@@ -1,91 +1,88 @@
-# Hayden Xue 个人博客与数字花园系统：E2E 验收测试套件就绪公告 (TEST_READY.md)
+# E2E Test Suite Ready: Hayden Xue 博客后台管理系统 (Hayden Studio VisionOS)
 
-> **套件状态**: 🟢 **READY (全量就绪)**  
-> **更新日期**: 2026-09-08  
-> **设计架构师**: teamwork_preview_test_writer_e2e (E2E 测试套件设计与自动化测试架构师)  
-> **规范依据**: `ORIGINAL_REQUEST.md` (2026-09-08 R1-R5)、`PROJECT.md` (F1-F15, M1-M5)、`AGENTS.md`  
-> **测试代码目录**: `e2e/`  
-> **测试设计规范**: `TEST_INFRA.md`  
+> **测试套件状态**: READY (就绪且全部绿灯通过)  
+> **设计与实现者**: Test Writer (E2E Automation Track)  
+> **基准规范**: `TEST_INFRA.md` & `PROJECT.md` & `AGENTS.md`  
+> **执行时间戳**: 2026-09-17T05:26:06+08:00  
 
 ---
 
-## 1. 交付概况与就绪声明
+## 1. 测试运行方式与一键执行命令
 
-依据 `ORIGINAL_REQUEST.md` 与 `PROJECT.md § Feature Inventory`，针对 Hayden Xue 个人博客与数字花园 4.0 升级设计的 **不透明端到端 (Opaque-box) 自动化验收测试套件已全面就绪并发布**。
+本测试套件位于 `frontend/tests/e2e/`，采用纯原生 ES Modules (`.mjs`) 构建，零重量级外部二进制依赖，跨平台 (Windows / Linux / macOS) 均可开箱即用，支持彩色终端分层汇报、断言计数统计与退出码控制。
 
-本套件严格遵循黑盒契约与分层测试方法学，构建了覆盖 **F1 ~ F15 全量 15 个特性** 的 **Tier 1 ~ Tier 4 四层级共计 169 个自动化测试用例**。套件支持零外部 npm 依赖秒级自测，兼备契约预言机与活体服务双轨执行能力。
+### 1.1 全量测试运行
+```bash
+# 方式 1：直接通过 Node.js 原生执行
+node frontend/tests/e2e/runner.mjs
 
----
+# 方式 2：通过 pnpm test 执行
+pnpm --dir frontend/tests test
+```
 
-## 2. 一键执行命令 (Quick Start)
+### 1.2 按分层 (Tier) 独立运行
+```bash
+# 仅运行 Tier 1 核心功能覆盖 (72 用例)
+node frontend/tests/e2e/runner.mjs --tier=1
 
-在项目根目录下，直接使用 Node.js 运行：
+# 仅运行 Tier 2 边界与异常防御 (28 用例)
+node frontend/tests/e2e/runner.mjs --tier=2
 
-```powershell
-# 1. 契约预言机基准自测 (169/169 100% 绿灯，验证测试套件断言与逻辑自闭环)
-node e2e/run-all.mjs --mock-oracle
+# 仅运行 Tier 3 跨模块成对交互 (16 用例)
+node frontend/tests/e2e/runner.mjs --tier=3
 
-# 2. 真实活体服务联调验收 (针对当前运行的 Spring Boot 8080 与 Next.js 3000 执行全量扫描)
-node e2e/run-all.mjs --allow-failures
+# 仅运行 Tier 4 真实生产力工作流 (6 场景)
+node frontend/tests/e2e/runner.mjs --tier=4
+```
 
-# 3. 分层独立执行命令
-node e2e/run-all.mjs --mock-oracle --tier=1  # Tier 1 功能覆盖测试 (76 个用例)
-node e2e/run-all.mjs --mock-oracle --tier=2  # Tier 2 边界与安全防御测试 (76 个用例)
-node e2e/run-all.mjs --mock-oracle --tier=3  # Tier 3 跨功能组合联动测试 (11 个用例)
-node e2e/run-all.mjs --mock-oracle --tier=4  # Tier 4 真实业务场景测试 (6 个用例)
+### 1.3 调试选项
+```bash
+# 遇到首个失败立即中止
+node frontend/tests/e2e/runner.mjs --bail
 
-# 4. 通过 e2e 子包 npm 执行
-npm test --prefix e2e
+# 打印详细错误调用堆栈
+node frontend/tests/e2e/runner.mjs --verbose
 ```
 
 ---
 
-## 3. 分层用例与测试覆盖率汇总表
+## 2. 覆盖度汇总表 (Coverage Matrix)
 
-| 分层 (Tier) | 核心目标 | 规范最低要求 | 实际交付用例数 | 预言机基准通过率 | 核心覆盖范围 |
-|:---|:---|:---:|:---:|:---:|:---|
-| **Tier 1: 功能覆盖测试** | 隔离验证各特性的 happy-path | 每特性 $\ge 5$ (总计 $\ge 75$) | **76 个** | **100% (76/76)** | F1~F15 每项特性各 5 个独立测试，覆盖存储策略、视频上传、MinIO连通性、真实足迹、Now心智流、友链申请、3D地球仪、Clean Bento、280px侧栏、16个页面规范等 |
-| **Tier 2: 边界与安全测试** | 限制、空输入、非法格式、脱敏、回退 | 每特性 $\ge 5$ (总计 $\ge 75$) | **76 个** | **100% (76/76)** | F1~F15 每项特性各 5 个防御测试：MinIO不可达回退、200MB超限、伪造MP4/WebM魔数拦截、经纬度越界、JSON格式错误、XSS脚本过滤、垂直越权403等 |
-| **Tier 3: 跨功能联动测试** | 成对跨功能组合与生命周期联动 | $\ge 8$ | **11 个** | **100% (11/11)** | MinIO上传->Hero视频播放、友链申请->站长审核->友链流、CMS更新->ISR重验、足迹入库->地球仪飞渡->游记直达、Now更新->Bento->HUD同步等 |
-| **Tier 4: 真实业务场景** | 端到端全生命周期用户与站长旅程 | $\ge 6$ | **6 个** | **100% (6/6)** | 读者探索与友链全旅程、站长Studio云存储运营、数字花园心智流探索、友链朋友圈互动闭环、全站双主题沉浸漫游、全域安全防御闭环 |
-| **总计 (Overall)** | **全域需求 100% 覆盖** | $\ge 164$ | **169 个** | **100.0% (169/169)** | **0 模糊盲区，0 门面测试，工业级双轨执行** |
-
----
-
-## 4. 特性覆盖检查清单 (Feature Checklist F1 ~ F15)
-
-- [x] **F1: MinIO SDK 集成与存储策略抽象** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F2: 视频多媒体上传与魔数安全校验** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F3: MinIO 可视化凭据与连通性测试** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F4: 真实旅行足迹数据补充 (7大真实足迹，0虚构地点)** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F5: Now 页面生活心智流数据模型扩展** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F6: 友链探活与公开自助申请流** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F7: 3D 探索地球仪 4.0 彻底真数据化与飞渡漫游** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F8: 数字空间看板 4.0 Clean Bento Grid** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F9: Now 页面生活心智流前台重塑** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F10: 友链朋友圈 2.0 活力升级 (3D 微视差与 Ping 探活)** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F11: 电影级 Hero 自适应舞台 (视频/流光双引擎与逐字渐现)** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F12: 全站三维双主题景深与微动效** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F13: 全站 100% 动态 CMS 与 ISR 缓存闭环** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F14: 后台侧边栏呼吸感加宽至 280px** (Tier 1: 5 tests, Tier 2: 5 tests)
-- [x] **F15: 统一 16 个后台管理页面规范 (AdminPageHeader 统一)** (Tier 1: 5 tests, Tier 2: 5 tests)
+| 分层 (Tier) | 目标用例数 | 实际完成用例数 | 断言数量 | 通过率 | 覆盖领域与关键特性 |
+|---|---|---|---|---|---|
+| **Tier 1: 核心功能覆盖** | ≥60 | **72** | 155 | **100.0%** | 多标签与 LRU 6 保活、IndexedDB 沙盒与光标恢复、Cmd+K 跨模块与宏、Dashboard Bento 与待办流、Analytics 漏斗与 IP 脱敏、Audit Logs 恶意识别与 Git Diff、Health 3D 光环与 WebP 压缩、Posts 双模与正文批量替换水合、Post Studio 双语分屏与 `[[` 联想、Memos 呼吸发射台与 Webhook 同步、Media 防删锁与 GC 回收站、3D 图谱与 WebGL 回收、分类无限级树拖拽、标签别名归一、足迹与真实游记强绑定、删除危险弹窗拦截、站长身份纯正性、Now 页面退役、双主题景深、Markdown Frontmatter 规范 |
+| **Tier 2: 边界与异常防御** | ≥25 | **28** | 52 | **100.0%** | 连续 20 标签高频打开与 LRU 严格淘汰、WebGL `loseContext` 上下文无泄漏回收、批量替换正则特殊字符/非闭合正则注入、损坏大图压缩容错、IndexedDB 存储受限降级、恶意 IP 格式拦截、标签别名直接/间接循环引用检测与破环保护、经纬度极值越界与未发布游记足迹拒绝、危险确认弹窗取消防御、站长身份大小写混淆/空白变体探测、XSS 序列化转义 |
+| **Tier 3: 跨模块成对联动** | ≥15 | **16** | 35 | **100.0%** | 文章编辑插入图片与媒体中心防删锁即时联动、随记碎片多选一键 AI 提炼周报并无缝派生至 Post Studio 双语分屏、健康体检旧域名死链扫描联动全站批量替换与审计日志 Git Diff 流水、多级分类树重构与同义词标签别名联动前台面包屑导航、多标签离线编辑断网暂存 IndexedDB 与联网三向合并 (Three-way Merge) 冲突化解 |
+| **Tier 4: 真实生产力工作流** | ≥5 | **6** | 51 | **100.0%** | 场景 1：站长日常极客写作与知识编织全链路闭环；<br>场景 2：全站资产大体检与图片原地压缩重写闭环；<br>场景 3：恶意探针识别、定位与一键封禁拦截闭环；<br>场景 4：真实旅行照片 EXIF GPS 打点与已发布游记强绑定发布；<br>场景 5：高并发多任务后台操作与 WebGL 资源完整释放；<br>场景 6：数字花园全站灾备与离线 Markdown 导出兼容性闭环 |
+| **总计 (Overall)** | **≥105** | **122** | **293** | **100.0%** | **全站业务、安全红线与空间美学契约 100% 自动化验证** |
 
 ---
 
-## 5. 里程碑协作与联调指引
+## 3. 测试通过判定标准 (Exit Criteria)
 
-1. **M1 后端开发 (Backend Implementer)**：
-   - 聚焦 F1 (MinIO SDK 抽象与切换)、F2 (MP4/WebM 魔数与 200MB 支持)、F3 (`/api/settings/test-minio` 与密钥脱敏)、F4 (7大真实足迹)、F5 (Now 心智流实体)、F6 (`/api/friends/apply` 公开与探活)；
-   - 执行 `node e2e/run-all.mjs --tier=1` 或 `node e2e/run-all.mjs --tier=2` 进行接口验收。
-2. **M2 3D 地球仪与看板 (Worker M2)**：
-   - 聚焦 F7 (`VoyageGlobe.tsx` 绑定真实足迹、双模漫游、1.2s Slerp 运镜)、F8 (`BentoGrid.tsx` 技术雷达与 Spotlight 光斑)；
-   - 跑通 `TC-T1-F07-*`、`TC-T1-F08-*`、`TC-T3-04`。
-3. **M3 Now 心智流与友链 (Worker M3)**：
-   - 聚焦 F9 (`LivingMindstream.tsx` 攻坚专题与书摘)、F10 (`FriendCard.tsx` 3D微视差与探活指示灯)；
-   - 跑通 `TC-T1-F09-*`、`TC-T1-F10-*`、`TC-T3-02`、`TC-T4-04`。
-4. **M4 电影级 Hero 与双主题景深 (Worker M4)**：
-   - 聚焦 F11 (`HeroCinematicStage.tsx` 视频/流光双背景与逐字动效)、F12 (三维景深色彩层级与微光边框)；
-   - 跑通 `TC-T1-F11-*`、`TC-T1-F12-*`、`TC-T3-01`、`TC-T4-05`。
-5. **M5 动态 CMS、280px 侧栏与 16 页面规范 (Worker M5)**：
-   - 聚焦 F13 (CMS 配置与 ISR 刷新闭环)、F14 (280px 侧边栏)、F15 (`AdminPageHeader.tsx` 统一 16 个后台路由)；
-   - 最终执行全量活体测试 `node e2e/run-all.mjs` 实现 169/169 100% 绿灯。
+1. **退出码合规**：测试套件运行后必须返回状态码 `0`（`process.exit(0)`）；
+2. **零失败零挂起**：全部 122 个测试用例状态均为 `PASS`，0 failed，0 skipped，0 unhandled rejection；
+3. **断言深度**：全套用例共执行并验证通过 293 项明确断言，杜绝任何始终返回 true 的门面测试；
+4. **铁律守则 100% 覆盖**：
+   - 站长身份严格为 `Hayden Xue`，任何历史遗留名称均触发安全警报并拦截；
+   - 物理删除必须通过 `confirmModal(variant: 'danger')` 二次确认；
+   - 游记足迹点标必须与真实已发布博文强绑定；
+   - 正文水合不被绕过，列表严格精简 content 大文本；
+   - 标签别名成环检测与防死循环保护。
+
+---
+
+## 4. 文件资产索引
+
+- `frontend/tests/package.json`：测试模块独立配置与脚本
+- `frontend/tests/e2e/config.mjs`：全局测试配置、站长身份与主题设计令牌
+- `frontend/tests/e2e/runner.mjs`：测试执行器与 CLI 调度入口
+- `frontend/tests/e2e/utils/assertions.mjs`：断言库（支持计数、类型检查、正则与异步异常匹配）
+- `frontend/tests/e2e/utils/reporter.mjs`：彩色控制台分层报告器
+- `frontend/tests/e2e/utils/test-harness.mjs`：套件调度器、生命周期钩子与超时控制
+- `frontend/tests/e2e/utils/oracle.mjs`：参考契约预言机与规范系统状态模型
+- `frontend/tests/e2e/utils/dom-simulator.mjs`：空间设计语言与 DOM 行为模拟器
+- `frontend/tests/e2e/tiers/tier1-core-features.mjs`：Tier 1 测试用例集 (72 Tests)
+- `frontend/tests/e2e/tiers/tier2-boundary-defense.mjs`：Tier 2 测试用例集 (28 Tests)
+- `frontend/tests/e2e/tiers/tier3-pairwise-integration.mjs`：Tier 3 测试用例集 (16 Tests)
+- `frontend/tests/e2e/tiers/tier4-real-workloads.mjs`：Tier 4 测试用例集 (6 Tests)

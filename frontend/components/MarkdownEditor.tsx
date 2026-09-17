@@ -42,6 +42,7 @@ import {
 import { MarkdownViewer } from './MarkdownViewer';
 import { InlineAiCopilot } from './admin/InlineAiCopilot';
 import { MediaPickerModal } from './admin/MediaPickerModal';
+import { WikiLinkAutocomplete } from './admin/posts/WikiLinkAutocomplete';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
 import { Media } from '@/lib/types';
@@ -168,6 +169,19 @@ export function MarkdownEditor({
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [copilotSelection, setCopilotSelection] = useState({ text: '', start: 0, end: 0 });
   const [copilotPos, setCopilotPos] = useState<{ x: number; y: number } | null>(null);
+
+  // 数字花园 [[ 双向链接联想状态
+  const [wikiLinkState, setWikiLinkState] = useState<{
+    isOpen: boolean;
+    query: string;
+    position: { top: number; left: number };
+    startIndex: number;
+  }>({
+    isOpen: false,
+    query: '',
+    position: { top: 0, left: 0 },
+    startIndex: 0,
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -439,9 +453,56 @@ export function MarkdownEditor({
     }
   };
 
-  // 打字机垂直居中定焦
+  const checkWikiLinkTrigger = (text: string, cursor: number) => {
+    const textBeforeCursor = text.substring(0, cursor);
+    const match = textBeforeCursor.match(/\[\[([^\]\n]*)$/);
+    if (match && textareaRef.current) {
+      const query = match[1];
+      const startIndex = cursor - match[0].length;
+      const rect = textareaRef.current.getBoundingClientRect();
+      const lines = textBeforeCursor.split('\n');
+      const lineIndex = lines.length;
+      const lineHeight = 24;
+      const top = Math.min(
+        Math.max(rect.top + 30, lineIndex * lineHeight - textareaRef.current.scrollTop + rect.top + 20),
+        rect.bottom - 100
+      );
+      const left = Math.min(rect.left + 50, window.innerWidth - 340);
+      setWikiLinkState({
+        isOpen: true,
+        query,
+        position: { top, left },
+        startIndex,
+      });
+    } else {
+      if (wikiLinkState.isOpen) {
+        setWikiLinkState((prev) => ({ ...prev, isOpen: false }));
+      }
+    }
+  };
+
+  const handleSelectWikiLink = (nodeTitle: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const currentVal = currentValueRef.current;
+    const cursor = textarea.selectionStart;
+    const before = currentVal.substring(0, wikiLinkState.startIndex);
+    const after = currentVal.substring(cursor);
+    const newVal = `${before}[[${nodeTitle}]]${after}`;
+    onChange(newVal);
+    setWikiLinkState((prev) => ({ ...prev, isOpen: false }));
+    setTimeout(() => {
+      textarea.focus();
+      const newCursor = before.length + nodeTitle.length + 4;
+      textarea.setSelectionRange(newCursor, newCursor);
+    }, 50);
+  };
+
+  // 打字机垂直居中定焦与 [[ 双向链接感知
   const handleInputWithScroll = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onChange(e.target.value);
+    const val = e.target.value;
+    onChange(val);
+    checkWikiLinkTrigger(val, e.target.selectionStart);
     if (typewriterMode && textareaRef.current) {
       const textarea = textareaRef.current;
       const cursor = textarea.selectionStart;
@@ -1093,6 +1154,38 @@ export function MarkdownEditor({
         mimePrefix="image/"
         title="从媒体资产库选择图片插入正文"
       />
+
+      {/* 数字花园 [[ 双向链接自动补全面板 */}
+      <WikiLinkAutocomplete
+        isOpen={wikiLinkState.isOpen}
+        query={wikiLinkState.query}
+        position={wikiLinkState.position}
+        onSelect={handleSelectWikiLink}
+        onClose={() => setWikiLinkState((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* 沉浸禅模式悬浮浮岛 HUD (ZenMode Immersive Typing) */}
+      {(mode === 'zen' || isFullscreen) && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.08] shadow-2xl flex items-center gap-4 text-xs font-mono text-slate-700 dark:text-slate-300">
+          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+            <Sparkles className="w-3.5 h-3.5" />
+            沉浸禅模式
+          </span>
+          <span>{metrics.totalCount} 字</span>
+          <span>预估 {metrics.readingTimeMinutes} 分钟</span>
+          <div className="w-px h-3 bg-slate-300 dark:bg-white/20" />
+          <button
+            type="button"
+            onClick={() => {
+              if (isFullscreen) toggleFullscreen();
+              setMode('split');
+            }}
+            className="hover:text-slate-900 dark:hover:text-white transition-colors"
+          >
+            退出沉浸 (Esc)
+          </button>
+        </div>
+      )}
     </div>
   );
 }
