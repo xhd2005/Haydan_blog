@@ -35,7 +35,7 @@ public class MediaController {
      * 解决阿里云 OSS 默认域名强制下载 (Content-Disposition: attachment) 的合规限制，
      * 重写为 Content-Disposition: inline 并注入 1 年长效强缓存与 ETag 协商缓存。
      */
-    @GetMapping(value = {"/view/**", "/stream/**"})
+    @RequestMapping(value = {"/view/**", "/stream/**"}, method = {RequestMethod.GET, RequestMethod.HEAD})
     @PreAuthorize("permitAll()")
     public ResponseEntity<Resource> streamMedia(HttpServletRequest request, WebRequest webRequest) {
         String fullPath = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);

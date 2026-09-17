@@ -326,4 +326,18 @@ public class SecurityAndArchitectureP0Test {
                 "所有查询出来的博文成熟度必须严格为 EVERGREEN"
         );
     }
+
+    @Test
+    @DisplayName("P0-9: 流式媒体代理接口公开访问测试：无需登录，GET 与 HEAD 绝不能返回 401")
+    void testMediaViewStreamPermitAll() throws Exception {
+        // 未携带任何 Token 访问 /api/media/view/2026/09/test.png
+        // 允许返回 404 (若底层无该文件) 或 200，但绝不能被 Spring Security 拦截为 401
+        int getStatus = mockMvc.perform(get("/api/media/view/2026/09/test.png"))
+                .andReturn().getResponse().getStatus();
+        org.junit.jupiter.api.Assertions.assertNotEquals(401, getStatus, "流式媒体代理接口 GET 绝不能返回 401 未认证状态");
+
+        int headStatus = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head("/api/media/view/2026/09/test.png"))
+                .andReturn().getResponse().getStatus();
+        org.junit.jupiter.api.Assertions.assertNotEquals(401, headStatus, "流式媒体代理接口 HEAD 绝不能返回 401 未认证状态");
+    }
 }

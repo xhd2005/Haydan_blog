@@ -47,8 +47,9 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**", "/favicon.ico", "/h2-console/**").permitAll()
                         // 认证接口公开（登录、注册、登出、验证码及状态检测）
                         .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/register", "/api/auth/captcha", "/api/auth/captcha-status").permitAll()
-                        // 公开多媒体流式代理接口（解决阿里云 OSS 默认域名强制下载，支持全网读者与前台免鉴权秒开）
+                        // 公开多媒体流式代理接口（解决阿里云 OSS 默认域名强制下载，支持全网读者与前台免鉴权秒开，同时支持 HEAD 与 GET）
                         .requestMatchers(HttpMethod.GET, "/api/media/view/**", "/api/media/stream/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/api/media/view/**", "/api/media/stream/**").permitAll()
                         // 媒体管理仅限 ADMIN 权限
                         .requestMatchers("/api/media", "/api/media/**").hasRole("ADMIN")
                         // AI 连通性测试与写作副驾仅限 ADMIN 权限
