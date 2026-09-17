@@ -21,7 +21,7 @@ if (!(Test-Path $KEY)) {
 $tarFile = "$env:TEMP\hayden-update-$((Get-Date).Ticks).tar.gz"
 Write-Host "📦 1/3 正在归档精炼代码包..." -ForegroundColor Yellow
 
-& git archive -o $tarFile HEAD backend frontend docker-compose.yml deploy
+& git archive -o $tarFile HEAD backend frontend docker-compose.yml deploy docs
 
 $tarSize = [math]::round(((Get-Item $tarFile).Length / 1MB), 2)
 Write-Host "✅ 打包完成，代码包体积仅: $tarSize MB" -ForegroundColor Green
@@ -37,7 +37,7 @@ Remove-Item $tarFile -Force -ErrorAction SilentlyContinue
 
 # 4. 在服务器上解压并执行增量构建
 Write-Host "🔨 3/3 服务器解压并调用 Docker 本地缓存增量构建..." -ForegroundColor Yellow
-$remoteCmd = "mkdir -p $TARGET_DIR && tar -xzf /tmp/hayden-update.tar.gz -C $TARGET_DIR/ && rm -f /tmp/hayden-update.tar.gz && cd $TARGET_DIR && docker compose build backend frontend && docker compose up -d backend frontend && docker image prune -f && docker compose ps"
+$remoteCmd = "mkdir -p $TARGET_DIR && tar -xzf /tmp/hayden-update.tar.gz -C $TARGET_DIR/ && rm -f /tmp/hayden-update.tar.gz && cd $TARGET_DIR && docker compose build backend frontend && docker compose up -d backend frontend && docker image prune -f && docker compose ps && sleep 3 && curl -sI http://localhost:3000/ | head -n 5"
 
 & ssh -i $KEY -o StrictHostKeyChecking=no -p 22 ${USER}@${HOST_IP} $remoteCmd
 
