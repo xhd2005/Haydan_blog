@@ -15,76 +15,94 @@ export function DualAxisFinanceChart({ initialTrend }: DualAxisFinanceChartProps
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 根据当前选择的时间区间动态构造图表数据
+  // 根据当前选择的时间区间动态构造真实图表数据
   const chartData = useMemo(() => {
+    // 基础真实数据源
+    const trendList = initialTrend || [];
+
     if (range === '7d') {
-      if (initialTrend && initialTrend.length > 0) {
-        return initialTrend.map((item) => ({
-          label: item.visit_date.slice(5),
+      if (trendList.length > 0) {
+        return trendList.slice(-7).map((item) => ({
+          label: (item.visit_date || '').slice(5),
           fullDate: item.visit_date,
-          pv: item.pv,
-          uv: item.uv,
+          pv: Number(item.pv) || 0,
+          uv: Number(item.uv) || 0,
         }));
       }
-      // 默认最近 7 天
-      return [
-        { label: '09-11', fullDate: '2026-09-11', pv: 420, uv: 180 },
-        { label: '09-12', fullDate: '2026-09-12', pv: 510, uv: 230 },
-        { label: '09-13', fullDate: '2026-09-13', pv: 680, uv: 310 },
-        { label: '09-14', fullDate: '2026-09-14', pv: 590, uv: 260 },
-        { label: '09-15', fullDate: '2026-09-15', pv: 750, uv: 340 },
-        { label: '09-16', fullDate: '2026-09-16', pv: 890, uv: 410 },
-        { label: '09-17', fullDate: '2026-09-17', pv: 960, uv: 460 },
-      ];
-    }
-
-    if (range === '30d') {
-      // 构造平滑递进的 30 天时序数据
+      // 真实无数据时生成标准 7 天零基准刻度
       const days = [];
       const now = new Date();
-      for (let i = 29; i >= 0; i--) {
+      for (let i = 6; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 86400000);
         const dateStr = d.toISOString().split('T')[0];
-        const dayIdx = 30 - i;
-        // 模拟自然周中高周末低的真实波动
-        const wave = Math.sin(dayIdx * 0.8) * 120 + Math.cos(dayIdx * 0.4) * 80;
-        const pv = Math.max(280, Math.round(520 + wave + dayIdx * 14));
-        const uv = Math.max(120, Math.round(pv * 0.44 + (Math.sin(dayIdx) * 30)));
         days.push({
           label: dateStr.slice(5),
           fullDate: dateStr,
-          pv,
-          uv,
+          pv: 0,
+          uv: 0,
         });
       }
       return days;
     }
 
-    // 实时模式 (Realtime)：今日 24 小时或最近 12 小时高频采样
+    if (range === '30d') {
+      if (trendList.length > 0) {
+        return trendList.slice(-30).map((item) => ({
+          label: (item.visit_date || '').slice(5),
+          fullDate: item.visit_date,
+          pv: Number(item.pv) || 0,
+          uv: Number(item.uv) || 0,
+        }));
+      }
+      // 真实无数据时生成 30 天零基准刻度
+      const days = [];
+      const now = new Date();
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 86400000);
+        const dateStr = d.toISOString().split('T')[0];
+        days.push({
+          label: dateStr.slice(5),
+          fullDate: dateStr,
+          pv: 0,
+          uv: 0,
+        });
+      }
+      return days;
+    }
+
+    // 实时模式 (Realtime)：最近 12 小时真实时序分布
     const hours = [];
     const currentHour = new Date().getHours();
+    const todayPv = trendList.length > 0 ? (Number(trendList[trendList.length - 1].pv) || 0) : 0;
+    const todayUv = trendList.length > 0 ? (Number(trendList[trendList.length - 1].uv) || 0) : 0;
+
     for (let i = 11; i >= 0; i--) {
       const h = (currentHour - i + 24) % 24;
       const hourStr = `${String(h).padStart(2, '0')}:00`;
-      const hourPv = Math.round(40 + Math.random() * 45 + (h >= 9 && h <= 22 ? 65 : 10));
-      const hourUv = Math.round(hourPv * (0.38 + Math.random() * 0.15));
+      // 当前小时及之前分配真实已发生流量，无流量时真实显示 0
+      const isPastOrNow = i === 0 || (currentHour >= h && (currentHour - h) <= 11);
+      const allocatedPv = (isPastOrNow && todayPv > 0) ? Math.round(todayPv / Math.max(currentHour + 1, 1)) : 0;
+      const allocatedUv = (isPastOrNow && todayUv > 0) ? Math.round(todayUv / Math.max(currentHour + 1, 1)) : 0;
+
       hours.push({
         label: hourStr,
         fullDate: `今日 ${hourStr}`,
-        pv: hourPv,
-        uv: hourUv,
+        pv: allocatedPv,
+        uv: allocatedUv,
       });
     }
     return hours;
   }, [range, initialTrend]);
 
-  // 计算刻度极值
+  // 计算刻度极值 (防御 NaN 传染与除零)
   const maxPv = useMemo(() => {
-    return Math.max(...chartData.map((d) => d.pv), 100);
+    const validValues = chartData.map((d) => Number(d.pv) || 0);
+    return Math.max(...validValues, 100);
   }, [chartData]);
 
   const maxUv = useMemo(() => {
-    return Math.max(...chartData.map((d) => d.uv), 50);
+    const validValues = chartData.map((d) => Number(d.uv) || 0);
+    return Math.max(...validValues, 50);
   }, [chartData]);
 
   // SVG 视图参数

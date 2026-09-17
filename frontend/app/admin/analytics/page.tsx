@@ -202,7 +202,7 @@ export default function AdminAnalyticsPage() {
         <ReadingDepthFunnelCard topPosts={topPosts} />
 
         {/* 读者互动转化雷达 (代码复制、外链、点赞、评论五维雷达) */}
-        <InteractiveConversionRadar />
+        <InteractiveConversionRadar overview={overview} />
       </div>
 
       {/* 3. 热门文章排行榜 Top 5 与流量渠道来源画像 */}

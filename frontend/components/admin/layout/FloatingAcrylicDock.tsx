@@ -130,21 +130,21 @@ export function FloatingAcrylicDock({
       )}
 
       {/* 
-        macOS 悬浮流光亚克力独立双岛坞 
-        CSS 契约包含：fixed, backdrop-blur-2xl, bg-white/80, dark:bg-neutral-900/60, border, border-slate-200/80, dark:border-white/[0.08], shadow-2xl, rounded-3xl
+        macOS 一体式垂直流光亚克力侧边栏
+        100vh 垂直通顶、消除四周浮空间隙、右侧 1px 极细微光高亮分割线
       */}
       <aside
-        className={`fixed top-3.5 bottom-3.5 left-3.5 z-50 flex flex-col justify-between backdrop-blur-2xl bg-white/80 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-white/[0.08] shadow-2xl rounded-3xl transition-all duration-300 ease-in-out select-none overflow-hidden ${
-          mobileOpen ? 'translate-x-0 w-[280px]' : '-translate-x-[120%] lg:translate-x-0'
-        } ${collapsed ? 'w-[68px]' : 'w-[280px]'}`}
+        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col justify-between h-screen backdrop-blur-2xl bg-[#fbfbfd]/95 dark:bg-[#090a0f]/95 border-r border-slate-200/80 dark:border-white/[0.08] shadow-xl transition-all duration-300 ease-in-out select-none overflow-hidden ${
+          mobileOpen ? 'translate-x-0 w-[256px]' : '-translate-x-full lg:translate-x-0'
+        } ${collapsed ? 'w-[68px]' : 'w-[256px]'}`}
         data-testid="floating-acrylic-dock"
       >
         {/* ========================================================================= */}
-        {/* 上岛：业务功能矩阵导航坞 (Main Island)                                  */}
+        {/* 上部：业务功能矩阵导航坞 (Main Navigation)                                */}
         {/* ========================================================================= */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* 顶部 Brand 徽章区域 */}
-          <div className="h-16 shrink-0 flex items-center justify-between px-3.5 border-b border-slate-200/80 dark:border-white/[0.08]">
+          {/* 顶部 Brand 徽章区域（h-14 严格对齐主 Topbar 高度） */}
+          <div className="h-14 shrink-0 flex items-center justify-between px-3 border-b border-slate-200/80 dark:border-white/[0.08]">
             <Link
               href="/admin/dashboard"
               className="flex items-center gap-2.5 overflow-hidden group py-1"

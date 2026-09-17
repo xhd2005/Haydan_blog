@@ -117,54 +117,6 @@ export default function AdminAuditLogsPage() {
 
       let records: EnhancedAuditLog[] = (res.records || []) as EnhancedAuditLog[];
 
-      // 如果记录少于模拟展示数量，注入示范性质的更新和威胁日志（保留真实日志优先）
-      if (records.length === 0 && !keyword && !moduleFilter) {
-        records = [
-          {
-            id: 101,
-            username: 'Hayden Xue',
-            clientIp: '192.168.1.100',
-            module: '文章管理',
-            operation: '更新文章 《VisionOS 空间设计美学与实践》',
-            method: 'PUT',
-            params: JSON.stringify({ id: 1, title: 'VisionOS 空间设计美学与实践', tags: ['Design', 'VisionOS'] }),
-            status: 1,
-            durationMs: 48,
-            createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-            diff: {
-              before: '本文将深入探讨浅色模式与暗色模式的简单反色设计。',
-              after: '本文将深入探讨雪瓷白与深邃曜石黑三维物理景深空间设计。',
-            },
-          },
-          {
-            id: 102,
-            username: 'ANONYMOUS',
-            clientIp: '45.33.32.156',
-            module: '系统安全',
-            operation: '敏感路径探测探测 /../../etc/passwd',
-            method: 'GET',
-            params: JSON.stringify({ query: '../../etc/passwd' }),
-            status: 0,
-            errorMsg: 'SecurityException: Path Traversal Attack Detected',
-            durationMs: 8,
-            createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-          },
-          {
-            id: 103,
-            username: 'ANONYMOUS',
-            clientIp: '198.51.100.44',
-            module: '系统安全',
-            operation: 'SQL注入攻击尝试 /api/search?id=1 UNION SELECT 1,2,3',
-            method: 'GET',
-            params: JSON.stringify({ id: '1 UNION SELECT password FROM users' }),
-            status: 0,
-            errorMsg: 'SqlSyntaxException: Disallowed keywords in parameter: UNION SELECT',
-            durationMs: 14,
-            createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-          },
-        ];
-      }
-
       // 客户端过滤
       if (statusFilter === 'success') {
         records = records.filter((r) => r.status === 1);

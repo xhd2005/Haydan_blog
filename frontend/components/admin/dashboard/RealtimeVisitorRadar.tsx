@@ -27,95 +27,59 @@ function maskIpAddress(ip: string): string {
   return ip.replace(/:[^:]+$/, ':****');
 }
 
+import { api } from '@/lib/api';
+
 export function RealtimeVisitorRadar() {
   const [activeVisitors, setActiveVisitors] = useState<VisitorPulseEvent[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(true);
-  const [channelType, setChannelType] = useState<'SSE Stream' | 'Pulse Fallback'>('SSE Stream');
-  const [pulseCount, setPulseCount] = useState<number>(0);
+  const [channelType, setChannelType] = useState<'SSE Stream' | 'Standby Radar'>('Standby Radar');
 
-  // 模拟城市与博文种子数据（用于平滑回退）
-  const seedLocations = [
-    { city: '北京', country: '中国', x: 70, y: 35 },
-    { city: '东京', country: '日本', x: 80, y: 40 },
-    { city: '上海', country: '中国', x: 74, y: 48 },
-    { city: '深圳', country: '中国', x: 68, y: 55 },
-    { city: '旧金山', country: '美国', x: 22, y: 38 },
-    { city: '伦敦', country: '英国', x: 45, y: 30 },
-    { city: '新加坡', country: '新加坡', x: 65, y: 62 },
-    { city: '柏林', country: '德国', x: 49, y: 28 },
-    { city: '多伦多', country: '加拿大', x: 28, y: 32 },
-    { city: '悉尼', country: '澳大利亚', x: 82, y: 78 },
-  ];
-
-  const seedPosts = [
-    { title: 'Next.js 14 空间流光与 3D WebGL 架构实录', slug: 'nextjs-14-visionos-architecture' },
-    { title: 'Java 21 虚拟线程在百万长连接中的落地演进', slug: 'java21-virtual-threads-scaling' },
-    { title: '从零构建沉浸式数字花园与引力星系图谱', slug: 'digital-garden-gravity-graph' },
-    { title: '深入浅出 MinIO 与云原生对象存储实战', slug: 'minio-cloud-native-storage' },
-    { title: 'Hayden Xue 东京涉谷十字路口光影漫步', slug: 'tokyo-shibuya-crossing-notes' },
-    { title: 'VisionOS 空间设计语言与现代前端微动效', slug: 'visionos-spatial-design-tokens' },
-  ];
-
-  const seedDevices = ['macOS · Chrome 128', 'Windows 11 · Edge 128', 'iOS 18 · Safari', 'Android 15 · Chrome Mobile'];
-
-  // 初始化访客池
+  // 100% 真实加载近期审计日志中非本地来源的访问流水
   useEffect(() => {
-    const initial: VisitorPulseEvent[] = [
-      {
-        id: 'pulse-1',
-        ip: '116.233.14.88',
-        city: '上海',
-        country: '中国',
-        postTitle: 'Next.js 14 空间流光与 3D WebGL 架构实录',
-        postSlug: 'nextjs-14-visionos-architecture',
-        device: 'macOS · Chrome 128',
-        durationSeconds: 142,
-        joinedAt: Date.now() - 142000,
-        xPercent: 74,
-        yPercent: 48,
-      },
-      {
-        id: 'pulse-2',
-        ip: '133.242.18.204',
-        city: '东京',
-        country: '日本',
-        postTitle: 'Hayden Xue 东京涉谷十字路口光影漫步',
-        postSlug: 'tokyo-shibuya-crossing-notes',
-        device: 'iOS 18 · Safari',
-        durationSeconds: 88,
-        joinedAt: Date.now() - 88000,
-        xPercent: 80,
-        yPercent: 40,
-      },
-      {
-        id: 'pulse-3',
-        ip: '104.28.212.19',
-        city: '旧金山',
-        country: '美国',
-        postTitle: 'Java 21 虚拟线程在百万长连接中的落地演进',
-        postSlug: 'java21-virtual-threads-scaling',
-        device: 'macOS · Safari',
-        durationSeconds: 310,
-        joinedAt: Date.now() - 310000,
-        xPercent: 22,
-        yPercent: 38,
-      },
-      {
-        id: 'pulse-4',
-        ip: '218.17.202.91',
-        city: '深圳',
-        country: '中国',
-        postTitle: '从零构建沉浸式数字花园与引力星系图谱',
-        postSlug: 'digital-garden-gravity-graph',
-        device: 'Windows 11 · Edge 128',
-        durationSeconds: 45,
-        joinedAt: Date.now() - 45000,
-        xPercent: 68,
-        yPercent: 55,
-      },
-    ];
+    let mounted = true;
 
-    setActiveVisitors(initial);
+    const fetchRealPulse = async () => {
+      try {
+        const res = await api.getAdminAuditLogs({ page: 1, pageSize: 20 });
+        if (!mounted) return;
+        const records = res?.records || [];
+
+        // 仅筛选外部非本地/非回环 IP 作为访客雷达点标
+        const publicVisitors: VisitorPulseEvent[] = records
+          .filter((r: any) => {
+            const ip = r.clientIp?.trim();
+            return ip && ip !== '127.0.0.1' && ip !== '::1' && !ip.startsWith('192.168.') && !ip.startsWith('10.');
+          })
+          .slice(0, 6)
+          .map((r: any, idx: number) => {
+            // 依据 IP 哈希生成雷达坐标 (0-100)
+            const hash = (r.clientIp || '').split('.').reduce((acc: number, cur: string) => acc + (parseInt(cur, 10) || 0), 0);
+            const x = 30 + ((hash * 7 + idx * 13) % 40);
+            const y = 30 + ((hash * 11 + idx * 17) % 40);
+
+            return {
+              id: `real-${r.id}`,
+              ip: r.clientIp,
+              city: '公网客户端',
+              country: '远程接入',
+              postTitle: r.operation || `${r.module} 操作`,
+              postSlug: r.module || 'analytics',
+              device: r.method ? `${r.method} Client` : 'Web Browser',
+              durationSeconds: Math.round((r.durationMs || 10) / 1000) || 1,
+              joinedAt: r.createdAt ? new Date(r.createdAt).getTime() : Date.now(),
+              xPercent: x,
+              yPercent: y,
+            };
+          });
+
+        setActiveVisitors(publicVisitors);
+        setChannelType(publicVisitors.length > 0 ? 'SSE Stream' : 'Standby Radar');
+      } catch (err) {
+        console.error('拉取真实访客雷达流失败:', err);
+      }
+    };
+
+    fetchRealPulse();
 
     // 尝试建立真实 SSE 连接
     let sseSource: EventSource | null = null;
@@ -132,20 +96,13 @@ export function RealtimeVisitorRadar() {
             if (data && data.ip) {
               addOrUpdateVisitor(data);
             }
-          } catch {
-            // 忽略格式解析
-          }
+          } catch {}
         };
         sseSource.onerror = () => {
-          // SSE 失败时自动平滑回退至真实脉冲流模拟器
-          setIsConnected(true);
-          setChannelType('Pulse Fallback');
           sseSource?.close();
         };
       }
-    } catch {
-      setChannelType('Pulse Fallback');
-    }
+    } catch {}
 
     // 停留时长动态每秒自增计数器
     const durationTimer = setInterval(() => {
@@ -157,38 +114,9 @@ export function RealtimeVisitorRadar() {
       );
     }, 1000);
 
-    // 脉冲事件流生成器：每 4~7 秒随机注入新读者或切换阅读文章
-    const pulseInterval = setInterval(() => {
-      setPulseCount((c) => c + 1);
-      const randomLoc = seedLocations[Math.floor(Math.random() * seedLocations.length)];
-      const randomPost = seedPosts[Math.floor(Math.random() * seedPosts.length)];
-      const randomDevice = seedDevices[Math.floor(Math.random() * seedDevices.length)];
-      const randomIp = `${Math.floor(Math.random() * 200 + 20)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 254 + 1)}`;
-
-      const newEvent: VisitorPulseEvent = {
-        id: `pulse-${Date.now()}`,
-        ip: randomIp,
-        city: randomLoc.city,
-        country: randomLoc.country,
-        postTitle: randomPost.title,
-        postSlug: randomPost.slug,
-        device: randomDevice,
-        durationSeconds: 1,
-        joinedAt: Date.now(),
-        xPercent: randomLoc.x + (Math.random() * 6 - 3),
-        yPercent: randomLoc.y + (Math.random() * 6 - 3),
-      };
-
-      setActiveVisitors((prev) => {
-        // 维持在 4~7 位在线访客
-        const filtered = prev.length >= 6 ? prev.slice(1) : prev;
-        return [...filtered, newEvent];
-      });
-    }, 4500);
-
     return () => {
+      mounted = false;
       clearInterval(durationTimer);
-      clearInterval(pulseInterval);
       if (sseSource) sseSource.close();
     };
   }, []);
@@ -289,34 +217,45 @@ export function RealtimeVisitorRadar() {
             </div>
 
             {/* 访客目标点标与微波纹扩散 */}
-            {activeVisitors.map((visitor, idx) => (
-              <div
-                key={visitor.id}
-                className="absolute z-20 group cursor-pointer"
-                style={{
-                  left: `${visitor.xPercent}%`,
-                  top: `${visitor.yPercent}%`,
-                  transform: 'translate(-50%, -50%)',
-                }}
-              >
-                {/* 动态微波纹 (Ripple effect) */}
-                <span className="absolute -inset-2 rounded-full border border-emerald-400/60 animate-ping duration-1000 opacity-75 pointer-events-none" />
-                <span className="absolute -inset-4 rounded-full border border-emerald-400/30 animate-pulse pointer-events-none" />
-
-                {/* 实体 Beacon 点标 */}
-                <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-emerald-500/80 shadow-md transition-transform duration-200 group-hover:scale-150" />
-
-                {/* 悬浮微型卡片 Tooltip */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-xl bg-slate-900/90 text-white text-[10px] font-mono shadow-xl pointer-events-none whitespace-nowrap z-30 border border-white/10">
-                  <div className="font-bold text-emerald-400 flex items-center gap-1">
-                    <MapPin className="w-2.5 h-2.5" />
-                    <span>{visitor.city} · {visitor.country}</span>
-                  </div>
-                  <div className="text-zinc-300 truncate max-w-[140px]">{visitor.postTitle}</div>
-                  <div className="text-zinc-400">停留: {formatSeconds(visitor.durationSeconds)}</div>
-                </div>
+            {activeVisitors.length === 0 ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 space-y-1">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 animate-pulse">
+                  STANDBY SCANNING
+                </span>
+                <span className="text-[9px] font-mono text-slate-400 dark:text-zinc-500">
+                  全网通道待命中
+                </span>
               </div>
-            ))}
+            ) : (
+              activeVisitors.map((visitor) => (
+                <div
+                  key={visitor.id}
+                  className="absolute z-20 group cursor-pointer"
+                  style={{
+                    left: `${visitor.xPercent}%`,
+                    top: `${visitor.yPercent}%`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  {/* 动态微波纹 (Ripple effect) */}
+                  <span className="absolute -inset-2 rounded-full border border-emerald-400/60 animate-ping duration-1000 opacity-75 pointer-events-none" />
+                  <span className="absolute -inset-4 rounded-full border border-emerald-400/30 animate-pulse pointer-events-none" />
+
+                  {/* 实体 Beacon 点标 */}
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-emerald-500/80 shadow-md transition-transform duration-200 group-hover:scale-150" />
+
+                  {/* 悬浮微型卡片 Tooltip */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-xl bg-slate-900/90 text-white text-[10px] font-mono shadow-xl pointer-events-none whitespace-nowrap z-30 border border-white/10">
+                    <div className="font-bold text-emerald-400 flex items-center gap-1">
+                      <MapPin className="w-2.5 h-2.5" />
+                      <span>{visitor.city} · {visitor.country}</span>
+                    </div>
+                    <div className="text-zinc-300 truncate max-w-[140px]">{visitor.postTitle}</div>
+                    <div className="text-zinc-400">停留: {formatSeconds(visitor.durationSeconds)}</div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="mt-3 text-[11px] font-mono text-slate-400 dark:text-zinc-500 flex items-center gap-1.5">
@@ -336,43 +275,61 @@ export function RealtimeVisitorRadar() {
           </div>
 
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-            {activeVisitors.map((item) => (
-              <div
-                key={item.id}
-                className="p-3 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04] flex items-center justify-between gap-3 text-xs hover:border-slate-300 dark:hover:border-white/[0.12] transition-colors"
-              >
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>{item.city}</span>
-                    </span>
-
-                    <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500">
-                      ({maskIpAddress(item.ip)})
-                    </span>
-
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400">
-                      {item.device}
-                    </span>
-                  </div>
-
-                  <p className="text-slate-700 dark:text-zinc-300 truncate font-medium text-[11px] flex items-center gap-1">
-                    <Eye className="w-3 h-3 text-cyan-500 shrink-0" />
-                    <span>{item.postTitle}</span>
-                  </p>
+            {activeVisitors.length === 0 ? (
+              <div className="p-6 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04] text-center space-y-2">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/20">
+                  <Radio className="w-5 h-5 animate-pulse" />
                 </div>
-
-                {/* 停留时长胶囊 */}
-                <div className="flex flex-col items-end shrink-0 font-mono">
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatSeconds(item.durationSeconds)}</span>
-                  </span>
-                  <span className="text-[9px] text-slate-400 dark:text-zinc-500">已停留</span>
+                <div className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                  雷达实时监听中 · 等待外部访客接入
+                </div>
+                <p className="text-[11px] text-slate-400 dark:text-zinc-500 max-w-sm mx-auto leading-relaxed">
+                  全向探测通道已就绪，当前暂无外部公网实时读者请求。外部读者浏览博文时将在此毫秒级流式点亮。
+                </p>
+                <div className="pt-2 flex items-center justify-center gap-2 text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span>SSE 实时信道待命中 · 自动感知外部流量</span>
                 </div>
               </div>
-            ))}
+            ) : (
+              activeVisitors.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3 rounded-2xl bg-slate-50/70 dark:bg-black/30 border border-slate-200/80 dark:border-white/[0.04] flex items-center justify-between gap-3 text-xs hover:border-slate-300 dark:hover:border-white/[0.12] transition-colors"
+                >
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>{item.city}</span>
+                      </span>
+
+                      <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500">
+                        ({maskIpAddress(item.ip)})
+                      </span>
+
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400">
+                        {item.device}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-700 dark:text-zinc-300 truncate font-medium text-[11px] flex items-center gap-1">
+                      <Eye className="w-3 h-3 text-cyan-500 shrink-0" />
+                      <span>{item.postTitle}</span>
+                    </p>
+                  </div>
+
+                  {/* 停留时长胶囊 */}
+                  <div className="flex flex-col items-end shrink-0 font-mono">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatSeconds(item.durationSeconds)}</span>
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-zinc-500">已停留</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

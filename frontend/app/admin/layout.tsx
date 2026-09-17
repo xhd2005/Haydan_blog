@@ -181,8 +181,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // 悬浮双岛坞左侧预留边距（包含 14px 离屏边距与大圆角缓冲）
-  const plClass = collapsed ? 'lg:pl-[92px]' : 'lg:pl-[304px]';
+  // 一体式通顶侧边栏预留边距（无四周浮空缝隙，极大释放主工作区宽度）
+  const plClass = collapsed ? 'lg:pl-[68px]' : 'lg:pl-[256px]';
   const isDark = mounted ? resolvedTheme === 'dark' : true;
 
   return (
